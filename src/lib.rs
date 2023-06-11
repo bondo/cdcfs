@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    hash::BuildHasherDefault,
+    hash::{BuildHasherDefault, Hash},
 };
 
 use fastcdc::v2020::FastCDC;
@@ -14,16 +14,19 @@ struct File {
 }
 
 #[derive(Debug)]
-pub struct CDCFS {
+pub struct CDCFS<K> {
     chunks: HashMap<u64, Vec<u8>, BuildHasherDefault<NoHashHasher<u64>>>, // Should exist in key-value store
-    files: HashMap<u32, File>, // Should exist in database
+    files: HashMap<K, File>, // Should exist in database
 }
 
 static AVG_SIZE: u32 = u32::pow(2, 14);
 static MIN_SIZE: u32 = AVG_SIZE / 4;
 static MAX_SIZE: u32 = AVG_SIZE * 4;
 
-impl CDCFS {
+impl<K> CDCFS<K>
+where
+    K: Eq + Hash,
+{
     pub fn new() -> Self {
         Self {
             chunks: HashMap::with_hasher(BuildHasherDefault::default()),
@@ -31,7 +34,7 @@ impl CDCFS {
         }
     }
 
-    pub fn upsert(&mut self, id: u32, source: &[u8]) {
+    pub fn upsert(&mut self, id: K, source: &[u8]) {
         let chunker = FastCDC::new(source, MIN_SIZE, AVG_SIZE, MAX_SIZE);
         let mut hashes = vec![];
         for chunk in chunker {
@@ -49,7 +52,7 @@ impl CDCFS {
         );
     }
 
-    pub fn read(&self, id: u32) -> Option<Vec<u8>> {
+    pub fn read(&self, id: K) -> Option<Vec<u8>> {
         let file = self.files.get(&id)?;
         let mut result = Vec::with_capacity(file.size);
         for hash in file.hashes.iter() {
@@ -59,7 +62,7 @@ impl CDCFS {
         Some(result)
     }
 
-    pub fn delete(&mut self, id: u32) {
+    pub fn delete(&mut self, id: K) {
         self.files.remove(&id);
     }
 
@@ -80,6 +83,8 @@ impl CDCFS {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use super::*;
 
     #[test]
@@ -139,5 +144,39 @@ mod tests {
         assert!(fs.read(10).is_none());
         assert_eq!(fs.files.len(), 0);
         assert_eq!(fs.chunks.len(), 0);
+    }
+
+    #[test]
+    fn can_restore_samples() {
+        let mut fs = CDCFS::new();
+
+        let samples = vec![
+            "file_example_JPG_2500kB.jpg",
+            "file_example_OOG_5MG.ogg",
+            "file-example_PDF_1MB.pdf",
+            "file-sample_1MB.docx",
+        ];
+
+        let files: Vec<(&str, Vec<u8>)> = samples
+            .iter()
+            .map(|sample| {
+                let file = fs::read(format!("test/fixtures/{sample}"));
+                assert!(file.is_ok());
+                (*sample, file.unwrap())
+            })
+            .collect();
+
+        for (name, file) in files.iter() {
+            fs.upsert(*name, file.as_slice());
+        }
+
+        assert_eq!(fs.files.len(), 4);
+
+        for (name, file) in files.iter() {
+            let result = fs.read(*name);
+            assert!(result.is_some());
+            let result = result.unwrap();
+            assert_eq!(&result, file);
+        }
     }
 }
