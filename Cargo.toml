@@ -6,6 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+async-trait = "0.1.68"
 fastcdc = "3.0.3"
 nohash-hasher = "0.2.0"
 wyhash = "0.5.0"
+
+[dev-dependencies]
+tokio = { version = "1.28.2", features = ["test-util", "macros"] }
