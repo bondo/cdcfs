@@ -5,66 +5,66 @@ use wyhash::wyhash;
 
 use crate::{
     chunks::traits::ChunkStore,
-    files::traits::{File, FileStore},
+    meta::traits::{Meta, MetaStore},
 };
 
 #[derive(Debug)]
-pub struct CDCFS<Key, ChunkStoreError, FileStoreError> {
-    chunks: Box<dyn ChunkStore<Error = ChunkStoreError>>, // Should exist in key-value store
-    files: Box<dyn FileStore<Key = Key, Error = FileStoreError>>, // Should exist in database
+pub struct System<C: ChunkStore, M: MetaStore> {
+    chunk_store: C,
+    meta_store: M,
 }
 
 static AVG_SIZE: u32 = u32::pow(2, 14);
 static MIN_SIZE: u32 = AVG_SIZE / 4;
 static MAX_SIZE: u32 = AVG_SIZE * 4;
 
-impl<Key, ChunkStoreError, FileStoreError> CDCFS<Key, ChunkStoreError, FileStoreError>
+impl<K, C, M> System<C, M>
 where
-    Key: Debug + Eq + Hash,
-    ChunkStoreError: Debug,
-    FileStoreError: Debug,
+    K: Debug + Eq + Hash,
+    M: MetaStore<Key = K>,
+    C: ChunkStore,
 {
-    pub fn new(
-        chunks: Box<dyn ChunkStore<Error = ChunkStoreError>>,
-        files: Box<dyn FileStore<Key = Key, Error = FileStoreError>>,
-    ) -> Self {
-        Self { chunks, files }
+    pub fn new(chunk_store: C, meta_store: M) -> Self {
+        Self {
+            chunk_store,
+            meta_store,
+        }
     }
 
-    pub async fn upsert(&mut self, id: Key, source: &[u8]) {
+    pub async fn upsert(&mut self, key: K, source: &[u8]) {
         let chunker = FastCDC::new(source, MIN_SIZE, AVG_SIZE, MAX_SIZE);
         let mut hashes = vec![];
         for chunk in chunker {
             let bytes = &source[chunk.offset..chunk.offset + chunk.length];
             let hash = wyhash(bytes, 42);
-            self.chunks
+            self.chunk_store
                 .insert(hash, bytes.to_owned())
                 .await
                 .expect("Should be able to insert chunk");
             hashes.push(hash);
         }
-        self.files
+        self.meta_store
             .upsert(
-                id,
-                File {
+                key,
+                Meta {
                     hashes,
                     size: source.len(),
                 },
             )
             .await
-            .expect("Should be able to upsert file");
+            .expect("Should be able to upsert meta");
     }
 
-    pub async fn read(&self, id: Key) -> Option<Vec<u8>> {
-        let file = self
-            .files
-            .get(&id)
+    pub async fn read(&self, key: K) -> Option<Vec<u8>> {
+        let meta = self
+            .meta_store
+            .get(&key)
             .await
-            .expect("Should be able to request file read")?;
-        let mut result = Vec::with_capacity(file.size);
-        for hash in file.hashes.iter() {
+            .expect("Should be able to request meta read")?;
+        let mut result = Vec::with_capacity(meta.size);
+        for hash in meta.hashes.iter() {
             let chunk = self
-                .chunks
+                .chunk_store
                 .get(hash)
                 .await
                 .expect("Hash should exist in map");
@@ -73,11 +73,11 @@ where
         Some(result)
     }
 
-    pub async fn delete(&mut self, id: Key) {
-        self.files
-            .remove(&id)
+    pub async fn delete(&mut self, key: K) {
+        self.meta_store
+            .remove(&key)
             .await
-            .expect("Should be able to remove file");
+            .expect("Should be able to remove meta");
     }
 }
 
@@ -85,27 +85,21 @@ where
 mod tests {
     use std::fs;
 
-    use crate::{chunks::memory::MemoryChunkStore, files::memory::MemoryFileStore};
+    use crate::{chunks::memory::MemoryChunkStore, meta::memory::MemoryMetaStore};
 
     use super::*;
 
     #[tokio::test]
     async fn it_can_read_and_write() {
         let source = "Hello World!".repeat(10_000);
-        let mut fs = CDCFS::new(
-            Box::new(MemoryChunkStore::new()),
-            Box::new(MemoryFileStore::new()),
-        );
+        let mut fs = System::new(MemoryChunkStore::new(), MemoryMetaStore::new());
         fs.upsert(42, source.as_bytes()).await;
         assert_eq!(fs.read(42).await.map(String::from_utf8), Some(Ok(source)));
     }
 
     #[tokio::test]
     async fn it_can_update() {
-        let mut fs = CDCFS::new(
-            Box::new(MemoryChunkStore::new()),
-            Box::new(MemoryFileStore::new()),
-        );
+        let mut fs = System::new(MemoryChunkStore::new(), MemoryMetaStore::new());
 
         let initial_source = "Initial contents";
         fs.upsert(42, initial_source.as_bytes()).await;
@@ -121,10 +115,7 @@ mod tests {
 
     #[tokio::test]
     async fn can_restore_samples() {
-        let mut fs = CDCFS::new(
-            Box::new(MemoryChunkStore::new()),
-            Box::new(MemoryFileStore::new()),
-        );
+        let mut fs = System::new(MemoryChunkStore::new(), MemoryMetaStore::new());
 
         let samples = vec![
             "file_example_JPG_2500kB.jpg",
@@ -133,7 +124,7 @@ mod tests {
             "file-sample_1MB.docx",
         ];
 
-        let files: Vec<(&str, Vec<u8>)> = samples
+        let meta: Vec<(&str, Vec<u8>)> = samples
             .iter()
             .map(|sample| {
                 let file = fs::read(format!("test/fixtures/{sample}"));
@@ -142,11 +133,11 @@ mod tests {
             })
             .collect();
 
-        for (name, file) in files.iter() {
+        for (name, file) in meta.iter() {
             fs.upsert(*name, file.as_slice()).await;
         }
 
-        for (name, file) in files.iter() {
+        for (name, file) in meta.iter() {
             let result = fs.read(*name).await;
             assert!(result.is_some());
             let result = result.unwrap();
