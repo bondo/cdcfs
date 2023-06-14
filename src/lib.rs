@@ -1,39 +1,37 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use std::{fmt::Debug, hash::Hash};
 
 use chunks::traits::ChunkStore;
 use fastcdc::v2020::FastCDC;
+use files::traits::{File, FileStore};
 use wyhash::wyhash;
 
 pub mod chunks;
+pub mod files;
 
 #[derive(Debug)]
-struct File {
-    hashes: Vec<u64>,
-    size: usize,
-}
-
-#[derive(Debug)]
-pub struct CDCFS<K, ChunkStoreError> {
+pub struct CDCFS<Key, ChunkStoreError, FileStoreError> {
     chunks: Box<dyn ChunkStore<Error = ChunkStoreError>>, // Should exist in key-value store
-    files: HashMap<K, File>,                              // Should exist in database
+    files: Box<dyn FileStore<Key = Key, Error = FileStoreError>>, // Should exist in database
 }
 
 static AVG_SIZE: u32 = u32::pow(2, 14);
 static MIN_SIZE: u32 = AVG_SIZE / 4;
 static MAX_SIZE: u32 = AVG_SIZE * 4;
 
-impl<K, ChunkStoreError: Debug> CDCFS<K, ChunkStoreError>
+impl<Key, ChunkStoreError, FileStoreError> CDCFS<Key, ChunkStoreError, FileStoreError>
 where
-    K: Eq + Hash,
+    Key: Debug + Eq + Hash,
+    ChunkStoreError: Debug,
+    FileStoreError: Debug,
 {
-    pub fn new(chunks: Box<dyn ChunkStore<Error = ChunkStoreError>>) -> Self {
-        Self {
-            chunks,
-            files: HashMap::new(),
-        }
+    pub fn new(
+        chunks: Box<dyn ChunkStore<Error = ChunkStoreError>>,
+        files: Box<dyn FileStore<Key = Key, Error = FileStoreError>>,
+    ) -> Self {
+        Self { chunks, files }
     }
 
-    pub async fn upsert(&mut self, id: K, source: &[u8]) {
+    pub async fn upsert(&mut self, id: Key, source: &[u8]) {
         let chunker = FastCDC::new(source, MIN_SIZE, AVG_SIZE, MAX_SIZE);
         let mut hashes = vec![];
         for chunk in chunker {
@@ -45,17 +43,24 @@ where
                 .expect("Should be able to insert chunk");
             hashes.push(hash);
         }
-        self.files.insert(
-            id,
-            File {
-                hashes,
-                size: source.len(),
-            },
-        );
+        self.files
+            .upsert(
+                id,
+                File {
+                    hashes,
+                    size: source.len(),
+                },
+            )
+            .await
+            .expect("Should be able to upsert file");
     }
 
-    pub async fn read(&self, id: K) -> Option<Vec<u8>> {
-        let file = self.files.get(&id)?;
+    pub async fn read(&self, id: Key) -> Option<Vec<u8>> {
+        let file = self
+            .files
+            .get(&id)
+            .await
+            .expect("Should be able to request file read")?;
         let mut result = Vec::with_capacity(file.size);
         for hash in file.hashes.iter() {
             let chunk = self
@@ -68,8 +73,11 @@ where
         Some(result)
     }
 
-    pub fn delete(&mut self, id: K) {
-        self.files.remove(&id);
+    pub async fn delete(&mut self, id: Key) {
+        self.files
+            .remove(&id)
+            .await
+            .expect("Should be able to remove file");
     }
 
     // pub fn gc(&mut self) {
@@ -91,21 +99,27 @@ where
 mod tests {
     use std::fs;
 
-    use crate::chunks::memory::MemoryChunkStore;
+    use crate::{chunks::memory::MemoryChunkStore, files::memory::MemoryFileStore};
 
     use super::*;
 
     #[tokio::test]
     async fn it_can_read_and_write() {
         let source = "Hello World!".repeat(10_000);
-        let mut fs = CDCFS::new(Box::new(MemoryChunkStore::new()));
+        let mut fs = CDCFS::new(
+            Box::new(MemoryChunkStore::new()),
+            Box::new(MemoryFileStore::new()),
+        );
         fs.upsert(42, source.as_bytes()).await;
         assert_eq!(fs.read(42).await.map(String::from_utf8), Some(Ok(source)));
     }
 
     #[tokio::test]
     async fn it_can_update() {
-        let mut fs = CDCFS::new(Box::new(MemoryChunkStore::new()));
+        let mut fs = CDCFS::new(
+            Box::new(MemoryChunkStore::new()),
+            Box::new(MemoryFileStore::new()),
+        );
 
         let initial_source = "Initial contents";
         fs.upsert(42, initial_source.as_bytes()).await;
@@ -156,7 +170,10 @@ mod tests {
 
     #[tokio::test]
     async fn can_restore_samples() {
-        let mut fs = CDCFS::new(Box::new(MemoryChunkStore::new()));
+        let mut fs = CDCFS::new(
+            Box::new(MemoryChunkStore::new()),
+            Box::new(MemoryFileStore::new()),
+        );
 
         let samples = vec![
             "file_example_JPG_2500kB.jpg",
@@ -177,8 +194,6 @@ mod tests {
         for (name, file) in files.iter() {
             fs.upsert(*name, file.as_slice()).await;
         }
-
-        assert_eq!(fs.files.len(), 4);
 
         for (name, file) in files.iter() {
             let result = fs.read(*name).await;
