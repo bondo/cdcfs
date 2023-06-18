@@ -68,7 +68,7 @@ where
                 .get(hash)
                 .await
                 .expect("Hash should exist in map");
-            result.extend_from_slice(chunk);
+            result.extend_from_slice(&chunk);
         }
         Some(result)
     }

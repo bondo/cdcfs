@@ -33,9 +33,9 @@ pub enum MemoryChunkStoreError {
 impl ChunkStore for MemoryChunkStore {
     type Error = MemoryChunkStoreError;
 
-    async fn get(&self, hash: &u64) -> Result<&Vec<u8>, Self::Error> {
+    async fn get(&self, hash: &u64) -> Result<Vec<u8>, Self::Error> {
         if let Some(chunk) = self.0.get(hash) {
-            Ok(chunk)
+            Ok(chunk.to_owned())
         } else {
             Err(MemoryChunkStoreError::NotFound)
         }
