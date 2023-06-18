@@ -55,12 +55,17 @@ mod tests {
         test.run(|ops| f(ops.handle("redis").ip().to_owned()));
     }
 
+    fn get_redis_chunk_store(ip: &Ipv4Addr) -> RedisChunkStore {
+        RedisChunkStore::new(format!("redis://{}", ip))
+            .expect("Should be able to create redis chunk store")
+    }
+
     #[test]
     fn it_can_read_and_write() {
         with_redis_running(|ip| async move {
+            let mut store = get_redis_chunk_store(&ip);
+
             let source = "Here are some bytes!".as_bytes();
-            let mut store =
-                RedisChunkStore::new(format!("redis://{}", ip)).expect("Can create store");
             assert_eq!(store.insert(10, source.to_owned()), Ok(()));
 
             let result = store.get(&10);
@@ -70,9 +75,10 @@ mod tests {
     }
 
     #[test]
-    fn it_return_empty_data_when_read_missing_item() {
+    fn it_returns_empty_data_when_reading_missing_item() {
         with_redis_running(|ip| async move {
-            let store = RedisChunkStore::new(format!("redis://{}", ip)).expect("Can create store");
+            let store = get_redis_chunk_store(&ip);
+
             assert_eq!(store.get(&60), Ok(vec![]));
         });
     }
@@ -80,8 +86,8 @@ mod tests {
     #[test]
     fn it_ignores_remove_of_missing_item() {
         with_redis_running(|ip| async move {
-            let mut store =
-                RedisChunkStore::new(format!("redis://{}", ip)).expect("Can create store");
+            let mut store = get_redis_chunk_store(&ip);
+
             assert_eq!(store.remove(&60), Ok(()));
         });
     }
