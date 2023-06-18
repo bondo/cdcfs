@@ -10,6 +10,7 @@ async-trait = "0.1.68"
 fastcdc = "3.0.3"
 nohash-hasher = "0.2.0"
 redis = "0.23.0"
+sqlx = { version = "0.6.3", features = ["runtime-tokio-rustls", "postgres", "offline"] }
 wyhash = "0.5.0"
 
 [dev-dependencies]
@@ -18,3 +19,11 @@ tokio = { version = "1.28.2", features = ["test-util", "macros"] }
 tracing = "0.1.13"
 tracing-subscriber = "0.2"
 test-log = { version = "0.2", default-features = false, features = ["trace"] }
+
+[build-dependencies]
+dotenvy = "0.15.7"
+sqlx = { version = "0.6.3", features = ["runtime-tokio-rustls", "postgres"] }
+tokio = { version = "1.28.2", features = ["full"] }
+
+[profile.dev.package.sqlx-macros]
+opt-level = 3

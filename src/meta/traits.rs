@@ -13,7 +13,7 @@ pub trait MetaStore: Debug {
     type Key: Debug;
     type Error: Debug;
 
-    async fn get(&self, key: &Self::Key) -> Result<Option<&Meta>, Self::Error>;
+    async fn get(&self, key: &Self::Key) -> Result<Option<Meta>, Self::Error>;
 
     async fn upsert(&mut self, key: Self::Key, meta: Meta) -> Result<(), Self::Error>;
 

@@ -3,9 +3,11 @@
     "CDCFS",
     "chunker",
     "dockertest",
+    "dotenvy",
     "fastcdc",
     "Hasher",
     "nohash",
+    "rustls",
     "waitfor",
     "wyhash"
   ]

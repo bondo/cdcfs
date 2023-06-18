@@ -25,8 +25,8 @@ impl<K: Debug + Eq + Hash + Send + Sync> MetaStore for MemoryMetaStore<K> {
     type Key = K;
     type Error = Infallible;
 
-    async fn get(&self, key: &Self::Key) -> Result<Option<&Meta>, Self::Error> {
-        Ok(self.0.get(key))
+    async fn get(&self, key: &Self::Key) -> Result<Option<Meta>, Self::Error> {
+        Ok(self.0.get(key).map(|v| v.to_owned()))
     }
 
     async fn upsert(&mut self, key: Self::Key, meta: Meta) -> Result<(), Self::Error> {
@@ -60,7 +60,7 @@ mod tests {
             size: 1234,
         };
         assert_eq!(store.upsert(key, initial_meta.clone()).await, Ok(()));
-        assert_eq!(store.get(&key).await, Ok(Some(&initial_meta)));
+        assert_eq!(store.get(&key).await, Ok(Some(initial_meta)));
 
         let updated_meta = Meta {
             hashes: "Here's some stuff other stuff"
@@ -71,7 +71,7 @@ mod tests {
             size: 4321,
         };
         assert_eq!(store.upsert(key, updated_meta.clone()).await, Ok(()));
-        assert_eq!(store.get(&key).await, Ok(Some(&updated_meta)));
+        assert_eq!(store.get(&key).await, Ok(Some(updated_meta)));
     }
 
     #[tokio::test]
@@ -87,7 +87,7 @@ mod tests {
             size: 1234,
         };
         assert_eq!(store.upsert(key, meta.clone()).await, Ok(()));
-        assert_eq!(store.get(&key).await, Ok(Some(&meta)));
+        assert_eq!(store.get(&key).await, Ok(Some(meta)));
 
         assert_eq!(store.remove(&key).await, Ok(()));
         assert_eq!(store.get(&key).await, Ok(None));
