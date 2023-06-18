@@ -39,7 +39,6 @@ where
             let hash = wyhash(bytes, 42);
             self.chunk_store
                 .insert(hash, bytes.to_owned())
-                .await
                 .expect("Should be able to insert chunk");
             hashes.push(hash);
         }
@@ -66,7 +65,6 @@ where
             let chunk = self
                 .chunk_store
                 .get(hash)
-                .await
                 .expect("Hash should exist in map");
             result.extend_from_slice(&chunk);
         }

@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use redis::{Client, Commands, IntoConnectionInfo, RedisError};
 
 use super::traits::ChunkStore;
@@ -12,19 +11,18 @@ impl RedisChunkStore {
     }
 }
 
-#[async_trait]
 impl ChunkStore for RedisChunkStore {
     type Error = RedisError;
 
-    async fn get(&self, hash: &u64) -> Result<Vec<u8>, Self::Error> {
+    fn get(&self, hash: &u64) -> Result<Vec<u8>, Self::Error> {
         self.0.get_connection()?.get(hash)
     }
 
-    async fn insert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<(), Self::Error> {
+    fn insert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<(), Self::Error> {
         self.0.set(hash, chunk)
     }
 
-    async fn remove(&mut self, hash: &u64) -> Result<(), Self::Error> {
+    fn remove(&mut self, hash: &u64) -> Result<(), Self::Error> {
         self.0.del(hash)
     }
 }
@@ -63,9 +61,9 @@ mod tests {
             let source = "Here are some bytes!".as_bytes();
             let mut store =
                 RedisChunkStore::new(format!("redis://{}", ip)).expect("Can create store");
-            assert_eq!(store.insert(10, source.to_owned()).await, Ok(()));
+            assert_eq!(store.insert(10, source.to_owned()), Ok(()));
 
-            let result = store.get(&10).await;
+            let result = store.get(&10);
             assert!(result.is_ok());
             assert_eq!(result.unwrap(), source);
         });
@@ -75,7 +73,7 @@ mod tests {
     fn it_return_empty_data_when_read_missing_item() {
         with_redis_running(|ip| async move {
             let store = RedisChunkStore::new(format!("redis://{}", ip)).expect("Can create store");
-            assert_eq!(store.get(&60).await, Ok(vec![]));
+            assert_eq!(store.get(&60), Ok(vec![]));
         });
     }
 
@@ -84,7 +82,7 @@ mod tests {
         with_redis_running(|ip| async move {
             let mut store =
                 RedisChunkStore::new(format!("redis://{}", ip)).expect("Can create store");
-            assert_eq!(store.remove(&60).await, Ok(()));
+            assert_eq!(store.remove(&60), Ok(()));
         });
     }
 }

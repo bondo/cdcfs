@@ -3,7 +3,6 @@ use std::{
     hash::BuildHasherDefault,
 };
 
-use async_trait::async_trait;
 use nohash_hasher::NoHashHasher;
 
 use super::traits::ChunkStore;
@@ -29,11 +28,10 @@ pub enum MemoryChunkStoreError {
     AlreadyExists,
 }
 
-#[async_trait]
 impl ChunkStore for MemoryChunkStore {
     type Error = MemoryChunkStoreError;
 
-    async fn get(&self, hash: &u64) -> Result<Vec<u8>, Self::Error> {
+    fn get(&self, hash: &u64) -> Result<Vec<u8>, Self::Error> {
         if let Some(chunk) = self.0.get(hash) {
             Ok(chunk.to_owned())
         } else {
@@ -41,7 +39,7 @@ impl ChunkStore for MemoryChunkStore {
         }
     }
 
-    async fn insert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<(), Self::Error> {
+    fn insert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<(), Self::Error> {
         match self.0.entry(hash) {
             Entry::Vacant(entry) => {
                 entry.insert(chunk);
@@ -51,7 +49,7 @@ impl ChunkStore for MemoryChunkStore {
         }
     }
 
-    async fn remove(&mut self, hash: &u64) -> Result<(), Self::Error> {
+    fn remove(&mut self, hash: &u64) -> Result<(), Self::Error> {
         if self.0.remove(hash).is_some() {
             Ok(())
         } else {
@@ -64,47 +62,44 @@ impl ChunkStore for MemoryChunkStore {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn it_can_read_and_write() {
+    #[test]
+    fn it_can_read_and_write() {
         let source = "Here are some bytes!".as_bytes();
         let mut store = MemoryChunkStore::new();
-        assert_eq!(store.insert(10, source.to_owned()).await, Ok(()));
+        assert_eq!(store.insert(10, source.to_owned()), Ok(()));
 
-        let result = store.get(&10).await;
+        let result = store.get(&10);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), source);
     }
 
-    #[tokio::test]
-    async fn it_cannot_update() {
+    #[test]
+    fn it_cannot_update() {
         let mut store = MemoryChunkStore::new();
 
         let initial_source = "Initial contents".as_bytes();
-        assert_eq!(store.insert(42, initial_source.to_owned()).await, Ok(()));
+        assert_eq!(store.insert(42, initial_source.to_owned()), Ok(()));
 
         let updated_source = "Updated contents".as_bytes();
         assert_eq!(
-            store.insert(42, updated_source.to_owned()).await,
+            store.insert(42, updated_source.to_owned()),
             Err(MemoryChunkStoreError::AlreadyExists)
         );
 
-        let result = store.get(&42).await;
+        let result = store.get(&42);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), initial_source);
     }
 
-    #[tokio::test]
-    async fn it_cannot_read_missing_item() {
+    #[test]
+    fn it_cannot_read_missing_item() {
         let store = MemoryChunkStore::new();
-        assert_eq!(store.get(&60).await, Err(MemoryChunkStoreError::NotFound));
+        assert_eq!(store.get(&60), Err(MemoryChunkStoreError::NotFound));
     }
 
-    #[tokio::test]
-    async fn it_cannot_remove_missing_item() {
+    #[test]
+    fn it_cannot_remove_missing_item() {
         let mut store = MemoryChunkStore::new();
-        assert_eq!(
-            store.remove(&60).await,
-            Err(MemoryChunkStoreError::NotFound)
-        );
+        assert_eq!(store.remove(&60), Err(MemoryChunkStoreError::NotFound));
     }
 }
