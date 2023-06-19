@@ -83,13 +83,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, future::Future, net::Ipv4Addr};
-
-    use dockertest::{waitfor::RunningWait, Composition, DockerTest, Image};
+    use std::fs;
 
     use crate::{
         chunks::{memory::MemoryChunkStore, redis::RedisChunkStore},
         meta::memory::MemoryMetaStore,
+        test::redis::with_redis_ready,
     };
 
     use super::*;
@@ -150,32 +149,10 @@ mod tests {
         }
     }
 
-    fn with_redis_running<T, Fut>(f: T)
-    where
-        T: FnOnce(Ipv4Addr) -> Fut,
-        Fut: Future<Output = ()> + Send + 'static,
-    {
-        let mut test = DockerTest::new();
-
-        let image = Image::with_repository("redis").tag("6.0.19-alpine3.18");
-        let composition = Composition::with_image(image).with_wait_for(Box::new(RunningWait {
-            check_interval: 1,
-            max_checks: 10,
-        }));
-        test.add_composition(composition);
-
-        test.run(|ops| f(ops.handle("redis").ip().to_owned()));
-    }
-
-    fn get_redis_chunk_store(ip: &Ipv4Addr) -> RedisChunkStore {
-        RedisChunkStore::new(format!("redis://{}", ip))
-            .expect("Should be able to create redis chunk store")
-    }
-
     #[test_log::test]
     fn it_can_read_and_write_with_redis() {
-        with_redis_running(|ip| async move {
-            let mut fs = System::new(get_redis_chunk_store(&ip), MemoryMetaStore::new());
+        with_redis_ready(|url| async move {
+            let mut fs = System::new(RedisChunkStore::new(url).unwrap(), MemoryMetaStore::new());
 
             let source = "Hello World!".repeat(10_000);
             fs.upsert(42, source.as_bytes()).await;
@@ -185,8 +162,8 @@ mod tests {
 
     #[test_log::test]
     fn it_can_update_with_redis() {
-        with_redis_running(|ip| async move {
-            let mut fs = System::new(get_redis_chunk_store(&ip), MemoryMetaStore::new());
+        with_redis_ready(|url| async move {
+            let mut fs = System::new(RedisChunkStore::new(url).unwrap(), MemoryMetaStore::new());
 
             let initial_source = "Initial contents";
             fs.upsert(42, initial_source.as_bytes()).await;
@@ -203,8 +180,8 @@ mod tests {
 
     #[test_log::test]
     fn can_restore_samples_with_redis() {
-        with_redis_running(|ip| async move {
-            let mut fs = System::new(get_redis_chunk_store(&ip), MemoryMetaStore::new());
+        with_redis_ready(|url| async move {
+            let mut fs = System::new(RedisChunkStore::new(url).unwrap(), MemoryMetaStore::new());
 
             let samples = vec![
                 "file_example_JPG_2500kB.jpg",

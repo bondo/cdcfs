@@ -133,101 +133,18 @@ impl MetaStore for PostgresMetaStore {
 
 #[cfg(test)]
 mod tests {
-    use std::{future::Future, net::Ipv4Addr, time::Duration};
-
-    use bollard::{exec::CreateExecOptions, Docker};
-    use dockertest::{waitfor::RunningWait, Composition, DockerTest, Image};
     use test_log::test;
-    use thiserror::Error;
-    use tokio::time::sleep;
+
+    use crate::test::postgres::with_postgres_ready;
 
     use super::*;
 
-    fn with_postgres_running<T, Fut>(f: T)
-    where
-        T: FnOnce((Ipv4Addr, u32), String) -> Fut,
-        Fut: Future<Output = ()> + Send + 'static,
-    {
-        let mut test = DockerTest::new();
-
-        let image = Image::with_repository("postgres").tag("15.3-alpine3.18");
-        let mut composition = Composition::with_image(image)
-            .with_env([("POSTGRES_PASSWORD".to_string(), "postgres".to_string())].into())
-            .with_wait_for(Box::new(RunningWait {
-                check_interval: 1,
-                max_checks: 10,
-            }));
-        composition.publish_all_ports();
-        test.add_composition(composition);
-
-        test.run(|ops| {
-            let handle = ops.handle("postgres");
-            let ip_and_port = handle.host_port(5432);
-            assert!(ip_and_port.is_some());
-
-            f(ip_and_port.unwrap().to_owned(), handle.name().to_owned())
-        });
-    }
-
-    #[derive(Debug, Error)]
-    #[error("Timeout")]
-    struct TimeoutError;
-
-    async fn wait_for_postgres_ready_forever(container_name: &str) -> anyhow::Result<()> {
-        let docker = Docker::connect_with_local_defaults()?;
-        loop {
-            let check = docker
-                .create_exec(
-                    container_name,
-                    CreateExecOptions {
-                        cmd: Some(vec!["pg_isready"]),
-                        ..Default::default()
-                    },
-                )
-                .await?;
-            docker.start_exec(&check.id, None).await?;
-            loop {
-                let status = docker.inspect_exec(&check.id).await?;
-                let Some(true) = status.running else {
-                    break;
-                };
-                sleep(Duration::from_millis(10)).await;
-            }
-
-            let status = docker.inspect_exec(&check.id).await?;
-            if let Some(0) = status.exit_code {
-                sleep(Duration::from_millis(100)).await;
-                return Ok(());
-            };
-            sleep(Duration::from_millis(100)).await;
-        }
-    }
-
-    async fn wait_for_postgres_ready(
-        container_name: &str,
-        timeout: Duration,
-    ) -> anyhow::Result<()> {
-        tokio::select! {
-            res = wait_for_postgres_ready_forever(container_name) => res,
-            _ = tokio::time::sleep(timeout) => Err(TimeoutError.into()),
-        }
-    }
-
     #[test]
     fn it_can_read_and_write() {
-        with_postgres_running(|(ip, port), container_name| async move {
-            assert_eq!(
-                wait_for_postgres_ready(&container_name, Duration::from_millis(5000))
-                    .await
-                    .map_err(|e| format!("{:?}", e)),
-                Ok(())
-            );
-
-            let mut store = PostgresMetaStore::new(
-                format!("postgresql://postgres:postgres@{ip}:{port}/postgres").as_str(),
-            )
-            .await
-            .expect("Can connect to database");
+        with_postgres_ready(|url| async move {
+            let mut store = PostgresMetaStore::new(&url)
+                .await
+                .expect("Can connect to database");
 
             let key = 42;
 
@@ -262,18 +179,10 @@ mod tests {
 
     #[test]
     fn it_can_remove_meta() {
-        with_postgres_running(|(ip, port), container_name| async move {
-            assert!(
-                wait_for_postgres_ready(&container_name, Duration::from_millis(5000))
-                    .await
-                    .is_ok()
-            );
-
-            let mut store = PostgresMetaStore::new(
-                format!("postgresql://postgres:postgres@{ip}:{port}/postgres").as_str(),
-            )
-            .await
-            .expect("Can connect to database");
+        with_postgres_ready(|url| async move {
+            let mut store = PostgresMetaStore::new(&url)
+                .await
+                .expect("Can connect to database");
 
             let key = 19;
 
