@@ -87,8 +87,8 @@ mod tests {
 
     use crate::{
         chunks::{memory::MemoryChunkStore, redis::RedisChunkStore},
-        meta::memory::MemoryMetaStore,
-        test::redis::with_redis_ready,
+        meta::{memory::MemoryMetaStore, postgres::PostgresMetaStore},
+        test::{postgres::with_postgres_ready, redis::with_redis_ready},
     };
 
     use super::*;
@@ -205,6 +205,78 @@ mod tests {
 
             for (name, file) in meta.iter() {
                 let result = fs.read(*name).await;
+                assert!(result.is_some());
+                let result = result.unwrap();
+                assert_eq!(&result, file);
+            }
+        });
+    }
+
+    #[test_log::test]
+    fn it_can_read_and_write_with_postgres() {
+        with_postgres_ready(|url| async move {
+            let source = "Hello World!".repeat(10_000);
+            let mut fs = System::new(
+                MemoryChunkStore::new(),
+                PostgresMetaStore::new(&url).await.unwrap(),
+            );
+            fs.upsert(42, source.as_bytes()).await;
+            assert_eq!(fs.read(42).await.map(String::from_utf8), Some(Ok(source)));
+        });
+    }
+
+    #[test_log::test]
+    fn it_can_update_with_postgres() {
+        with_postgres_ready(|url| async move {
+            let mut fs = System::new(
+                MemoryChunkStore::new(),
+                PostgresMetaStore::new(&url).await.unwrap(),
+            );
+
+            let initial_source = "Initial contents";
+            fs.upsert(42, initial_source.as_bytes()).await;
+
+            let updated_source = "Updated contents";
+            fs.upsert(42, updated_source.as_bytes()).await;
+
+            assert_eq!(
+                fs.read(42).await.map(String::from_utf8),
+                Some(Ok(updated_source.to_string()))
+            );
+        });
+    }
+
+    #[test_log::test]
+    fn can_restore_samples_with_postgres() {
+        with_postgres_ready(|url| async move {
+            let mut fs = System::new(
+                MemoryChunkStore::new(),
+                PostgresMetaStore::new(&url).await.unwrap(),
+            );
+
+            let samples = vec![
+                "file_example_JPG_2500kB.jpg",
+                "file_example_OOG_5MG.ogg",
+                "file-example_PDF_1MB.pdf",
+                "file-sample_1MB.docx",
+            ];
+
+            let meta: Vec<(i32, Vec<u8>)> = samples
+                .iter()
+                .enumerate()
+                .map(|(idx, sample)| {
+                    let file = fs::read(format!("test/fixtures/{sample}"));
+                    assert!(file.is_ok());
+                    (idx as i32, file.unwrap())
+                })
+                .collect();
+
+            for (id, file) in meta.iter() {
+                fs.upsert(*id, file.as_slice()).await;
+            }
+
+            for (id, file) in meta.iter() {
+                let result = fs.read(*id).await;
                 assert!(result.is_some());
                 let result = result.unwrap();
                 assert_eq!(&result, file);
