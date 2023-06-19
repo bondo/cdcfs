@@ -14,11 +14,13 @@ sqlx = { version = "0.6.3", features = ["runtime-tokio-rustls", "postgres", "off
 wyhash = "0.5.0"
 
 [dev-dependencies]
+anyhow = "1.0.71"
+bollard = "0.13.0"
 dockertest = "0.3.1"
+test-log = { version = "0.2", default-features = false, features = ["trace"] }
 tokio = { version = "1.28.2", features = ["test-util", "macros"] }
 tracing = "0.1.13"
 tracing-subscriber = "0.2"
-test-log = { version = "0.2", default-features = false, features = ["trace"] }
 
 [build-dependencies]
 dotenvy = "0.15.7"

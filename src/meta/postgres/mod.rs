@@ -135,15 +135,16 @@ impl MetaStore for PostgresMetaStore {
 mod tests {
     use std::{future::Future, net::Ipv4Addr, time::Duration};
 
+    use bollard::{exec::CreateExecOptions, Docker};
     use dockertest::{waitfor::RunningWait, Composition, DockerTest, Image};
     use test_log::test;
-    use tokio::time::sleep;
+    use tokio::time::{sleep, Instant};
 
     use super::*;
 
     fn with_postgres_running<T, Fut>(f: T)
     where
-        T: FnOnce((Ipv4Addr, u32)) -> Fut,
+        T: FnOnce((Ipv4Addr, u32), String) -> Fut,
         Fut: Future<Output = ()> + Send + 'static,
     {
         let mut test = DockerTest::new();
@@ -162,14 +163,57 @@ mod tests {
             let handle = ops.handle("postgres");
             let ip_and_port = handle.host_port(5432);
             assert!(ip_and_port.is_some());
-            f(ip_and_port.unwrap().to_owned())
+
+            f(ip_and_port.unwrap().to_owned(), handle.name().to_owned())
         });
+    }
+
+    async fn wait_for_postgres_ready(
+        container_name: &str,
+        timeout: Duration,
+    ) -> anyhow::Result<()> {
+        let start = Instant::now();
+        let docker = Docker::connect_with_local_defaults()?;
+
+        loop {
+            let check = docker
+                .create_exec(
+                    container_name,
+                    CreateExecOptions {
+                        cmd: Some(vec!["pg_isready"]),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            docker.start_exec(&check.id, None).await?;
+            loop {
+                let status = docker.inspect_exec(&check.id).await?;
+                let Some(true) = status.running else {
+                    break;
+                };
+                assert!(start.elapsed() < timeout);
+                sleep(Duration::from_millis(10)).await;
+            }
+
+            let status = docker.inspect_exec(&check.id).await?;
+            if let Some(0) = status.exit_code {
+                break;
+            };
+            assert!(start.elapsed() < timeout);
+            sleep(Duration::from_millis(100)).await;
+        }
+
+        Ok(())
     }
 
     #[test]
     fn it_can_read_and_write() {
-        with_postgres_running(|(ip, port)| async move {
-            sleep(Duration::from_millis(1000)).await; // TODO: Make it work without this (custom WaitFor?)
+        with_postgres_running(|(ip, port), container_name| async move {
+            assert!(
+                wait_for_postgres_ready(&container_name, Duration::from_millis(2000))
+                    .await
+                    .is_ok()
+            );
 
             let mut store = PostgresMetaStore::new(
                 format!("postgresql://postgres:postgres@{ip}:{port}/postgres").as_str(),
@@ -210,8 +254,12 @@ mod tests {
 
     #[test]
     fn it_can_remove_meta() {
-        with_postgres_running(|(ip, port)| async move {
-            sleep(Duration::from_millis(1000)).await; // TODO: Make it work without this (custom WaitFor?)
+        with_postgres_running(|(ip, port), container_name| async move {
+            assert!(
+                wait_for_postgres_ready(&container_name, Duration::from_millis(2000))
+                    .await
+                    .is_ok()
+            );
 
             let mut store = PostgresMetaStore::new(
                 format!("postgresql://postgres:postgres@{ip}:{port}/postgres").as_str(),
