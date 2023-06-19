@@ -138,7 +138,8 @@ mod tests {
     use bollard::{exec::CreateExecOptions, Docker};
     use dockertest::{waitfor::RunningWait, Composition, DockerTest, Image};
     use test_log::test;
-    use tokio::time::{sleep, Instant};
+    use thiserror::Error;
+    use tokio::time::sleep;
 
     use super::*;
 
@@ -168,13 +169,12 @@ mod tests {
         });
     }
 
-    async fn wait_for_postgres_ready(
-        container_name: &str,
-        timeout: Duration,
-    ) -> anyhow::Result<()> {
-        let start = Instant::now();
-        let docker = Docker::connect_with_local_defaults()?;
+    #[derive(Debug, Error)]
+    #[error("Timeout")]
+    struct TimeoutError;
 
+    async fn wait_for_postgres_ready_forever(container_name: &str) -> anyhow::Result<()> {
+        let docker = Docker::connect_with_local_defaults()?;
         loop {
             let check = docker
                 .create_exec(
@@ -191,28 +191,36 @@ mod tests {
                 let Some(true) = status.running else {
                     break;
                 };
-                assert!(start.elapsed() < timeout);
                 sleep(Duration::from_millis(10)).await;
             }
 
             let status = docker.inspect_exec(&check.id).await?;
             if let Some(0) = status.exit_code {
-                break;
+                sleep(Duration::from_millis(100)).await;
+                return Ok(());
             };
-            assert!(start.elapsed() < timeout);
             sleep(Duration::from_millis(100)).await;
         }
+    }
 
-        Ok(())
+    async fn wait_for_postgres_ready(
+        container_name: &str,
+        timeout: Duration,
+    ) -> anyhow::Result<()> {
+        tokio::select! {
+            res = wait_for_postgres_ready_forever(container_name) => res,
+            _ = tokio::time::sleep(timeout) => Err(TimeoutError.into()),
+        }
     }
 
     #[test]
     fn it_can_read_and_write() {
         with_postgres_running(|(ip, port), container_name| async move {
-            assert!(
-                wait_for_postgres_ready(&container_name, Duration::from_millis(2000))
+            assert_eq!(
+                wait_for_postgres_ready(&container_name, Duration::from_millis(5000))
                     .await
-                    .is_ok()
+                    .map_err(|e| format!("{:?}", e)),
+                Ok(())
             );
 
             let mut store = PostgresMetaStore::new(
@@ -256,7 +264,7 @@ mod tests {
     fn it_can_remove_meta() {
         with_postgres_running(|(ip, port), container_name| async move {
             assert!(
-                wait_for_postgres_ready(&container_name, Duration::from_millis(2000))
+                wait_for_postgres_ready(&container_name, Duration::from_millis(5000))
                     .await
                     .is_ok()
             );

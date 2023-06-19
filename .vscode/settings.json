@@ -6,8 +6,10 @@
     "dotenvy",
     "fastcdc",
     "Hasher",
+    "isready",
     "nohash",
     "rustls",
+    "thiserror",
     "waitfor",
     "wyhash"
   ]
