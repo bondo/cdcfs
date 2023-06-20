@@ -129,11 +129,11 @@ mod tests {
         ];
 
         let meta: Vec<(&str, Vec<u8>)> = samples
-            .iter()
+            .into_iter()
             .map(|sample| {
                 let file = fs::read(format!("test/fixtures/{sample}"))
                     .expect("Should be able to read fixture");
-                (*sample, file)
+                (sample, file)
             })
             .collect();
 
@@ -141,9 +141,9 @@ mod tests {
             fs.upsert(*name, file.as_slice()).await;
         }
 
-        for (name, file) in meta.iter() {
-            let result = fs.read(*name).await;
-            assert_eq!(result, Some(file.to_owned()));
+        for (name, file) in meta.into_iter() {
+            let result = fs.read(name).await;
+            assert_eq!(result, Some(file));
         }
     }
 
@@ -189,11 +189,11 @@ mod tests {
             ];
 
             let meta: Vec<(&str, Vec<u8>)> = samples
-                .iter()
+                .into_iter()
                 .map(|sample| {
                     let file = fs::read(format!("test/fixtures/{sample}"))
                         .expect("Should be able to read fixture");
-                    (*sample, file)
+                    (sample, file)
                 })
                 .collect();
 
@@ -201,9 +201,9 @@ mod tests {
                 fs.upsert(*name, file.as_slice()).await;
             }
 
-            for (name, file) in meta.iter() {
-                let result = fs.read(*name).await;
-                assert_eq!(result, Some(file.to_owned()));
+            for (name, file) in meta.into_iter() {
+                let result = fs.read(name).await;
+                assert_eq!(result, Some(file));
             }
         });
     }
@@ -258,7 +258,7 @@ mod tests {
             ];
 
             let meta: Vec<(i32, Vec<u8>)> = samples
-                .iter()
+                .into_iter()
                 .enumerate()
                 .map(|(idx, sample)| {
                     let file = fs::read(format!("test/fixtures/{sample}"))
@@ -271,9 +271,9 @@ mod tests {
                 fs.upsert(*id, file.as_slice()).await;
             }
 
-            for (id, file) in meta.iter() {
-                let result = fs.read(*id).await;
-                assert_eq!(result, Some(file.to_owned()));
+            for (id, file) in meta.into_iter() {
+                let result = fs.read(id).await;
+                assert_eq!(result, Some(file));
             }
         });
     }
