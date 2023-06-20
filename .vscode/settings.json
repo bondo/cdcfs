@@ -9,7 +9,6 @@
     "isready",
     "nohash",
     "rustls",
-    "thiserror",
     "waitfor",
     "wyhash"
   ]

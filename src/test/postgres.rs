@@ -6,7 +6,6 @@ use dockertest::{
     waitfor::{RunningWait, WaitFor},
     Composition, DockerTest, DockerTestError, Image, PendingContainer, RunningContainer,
 };
-use thiserror::Error;
 use tokio::time::sleep;
 
 pub fn with_postgres_ready<T, Fut>(f: T)
@@ -52,10 +51,6 @@ impl WaitFor for PostgresReadyWait {
         }
     }
 }
-
-#[derive(Debug, Error)]
-#[error("Timeout")]
-struct TimeoutError;
 
 impl PostgresReadyWait {
     async fn wait_for_postgres_ready(
