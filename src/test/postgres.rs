@@ -1,4 +1,7 @@
-use std::{future::Future, time::Duration};
+use std::{
+    future::Future,
+    time::{Duration, Instant},
+};
 
 use async_trait::async_trait;
 use bollard::{exec::CreateExecOptions, Docker};
@@ -6,6 +9,7 @@ use dockertest::{
     waitfor::{RunningWait, WaitFor},
     Composition, DockerTest, DockerTestError, Image, PendingContainer, RunningContainer,
 };
+use sqlx::postgres::PgPoolOptions;
 use tokio::time::sleep;
 
 pub fn with_postgres_ready<T, Fut>(f: T)
@@ -13,25 +17,43 @@ where
     T: FnOnce(String) -> Fut,
     Fut: Future<Output = ()> + Send + 'static,
 {
+    let timeout = Duration::from_secs(10);
+    let start = Instant::now();
+
     let mut test = DockerTest::new();
 
     let image = Image::with_repository("postgres").tag("15.3-alpine3.18");
     let mut composition = Composition::with_image(image)
         .with_env([("POSTGRES_PASSWORD".to_string(), "postgres".to_string())].into())
-        .with_wait_for(Box::new(PostgresReadyWait {
-            timeout: Duration::from_millis(5000),
-        }));
+        .with_wait_for(Box::new(PostgresReadyWait { timeout }));
     composition.publish_all_ports();
     test.add_composition(composition);
 
     test.run(|ops| {
-        let handle = ops.handle("postgres");
-        let (ip, port) = handle
-            .host_port(5432)
-            .expect("Should have port 5432 mapped");
-        let url = format!("postgresql://postgres:postgres@{ip}:{port}/postgres");
-        f(url)
+        let url = {
+            let handle = ops.handle("postgres");
+            let (ip, port) = handle
+                .host_port(5432)
+                .expect("Should have port 5432 mapped");
+            format!("postgresql://postgres:postgres@{ip}:{port}/postgres")
+        };
+
+        let fut = f(url.clone());
+        async move {
+            tokio::select! {
+                _ = wait_for_connection(&url) => (),
+                _ = sleep(timeout - start.elapsed()) => panic!("Connection timeout after {:?}", start.elapsed()),
+            }
+
+            fut.await;
+        }
     });
+}
+
+async fn wait_for_connection(url: &str) {
+    while PgPoolOptions::new().connect(url).await.is_err() {
+        sleep(Duration::from_millis(50)).await;
+    }
 }
 
 #[derive(Clone)]
@@ -46,14 +68,14 @@ impl WaitFor for PostgresReadyWait {
         container: PendingContainer,
     ) -> Result<RunningContainer, DockerTestError> {
         tokio::select! {
-            res = self.wait_for_postgres_ready(container) => res,
-            _ = tokio::time::sleep(self.timeout) => Err(DockerTestError::Processing("Timeout".to_string())),
+            res = self.wait_for_pg_isready(container) => res,
+            _ = sleep(self.timeout) => Err(DockerTestError::Processing("Timeout".to_string())),
         }
     }
 }
 
 impl PostgresReadyWait {
-    async fn wait_for_postgres_ready(
+    async fn wait_for_pg_isready(
         &self,
         container: PendingContainer,
     ) -> Result<RunningContainer, DockerTestError> {
@@ -99,9 +121,6 @@ impl PostgresReadyWait {
             };
 
             if exit_code == 0 {
-                // TODO: Figure out why tests fail without this
-                sleep(Duration::from_millis(200)).await;
-
                 return Ok(container);
             };
         }
