@@ -27,10 +27,9 @@ where
 
     test.run(|ops| {
         let handle = ops.handle("postgres");
-        let ip_and_port = handle.host_port(5432);
-        assert!(ip_and_port.is_some());
-
-        let (ip, port) = ip_and_port.unwrap();
+        let (ip, port) = handle
+            .host_port(5432)
+            .expect("Should have port 5432 mapped");
         let url = format!("postgresql://postgres:postgres@{ip}:{port}/postgres");
         f(url)
     });

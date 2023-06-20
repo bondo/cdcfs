@@ -44,8 +44,7 @@ mod tests {
             assert_eq!(store.insert(10, source.to_owned()), Ok(()));
 
             let result = store.get(&10);
-            assert!(result.is_ok());
-            assert_eq!(result.unwrap(), source);
+            assert_eq!(result, Ok(source.to_owned()));
         });
     }
 

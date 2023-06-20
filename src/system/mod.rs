@@ -131,9 +131,9 @@ mod tests {
         let meta: Vec<(&str, Vec<u8>)> = samples
             .iter()
             .map(|sample| {
-                let file = fs::read(format!("test/fixtures/{sample}"));
-                assert!(file.is_ok());
-                (*sample, file.unwrap())
+                let file = fs::read(format!("test/fixtures/{sample}"))
+                    .expect("Should be able to read fixture");
+                (*sample, file)
             })
             .collect();
 
@@ -143,9 +143,7 @@ mod tests {
 
         for (name, file) in meta.iter() {
             let result = fs.read(*name).await;
-            assert!(result.is_some());
-            let result = result.unwrap();
-            assert_eq!(&result, file);
+            assert_eq!(result, Some(file.to_owned()));
         }
     }
 
@@ -193,9 +191,9 @@ mod tests {
             let meta: Vec<(&str, Vec<u8>)> = samples
                 .iter()
                 .map(|sample| {
-                    let file = fs::read(format!("test/fixtures/{sample}"));
-                    assert!(file.is_ok());
-                    (*sample, file.unwrap())
+                    let file = fs::read(format!("test/fixtures/{sample}"))
+                        .expect("Should be able to read fixture");
+                    (*sample, file)
                 })
                 .collect();
 
@@ -205,9 +203,7 @@ mod tests {
 
             for (name, file) in meta.iter() {
                 let result = fs.read(*name).await;
-                assert!(result.is_some());
-                let result = result.unwrap();
-                assert_eq!(&result, file);
+                assert_eq!(result, Some(file.to_owned()));
             }
         });
     }
@@ -265,9 +261,9 @@ mod tests {
                 .iter()
                 .enumerate()
                 .map(|(idx, sample)| {
-                    let file = fs::read(format!("test/fixtures/{sample}"));
-                    assert!(file.is_ok());
-                    (idx as i32, file.unwrap())
+                    let file = fs::read(format!("test/fixtures/{sample}"))
+                        .expect("Should be able to read fixture");
+                    (idx as i32, file)
                 })
                 .collect();
 
@@ -277,9 +273,7 @@ mod tests {
 
             for (id, file) in meta.iter() {
                 let result = fs.read(*id).await;
-                assert!(result.is_some());
-                let result = result.unwrap();
-                assert_eq!(&result, file);
+                assert_eq!(result, Some(file.to_owned()));
             }
         });
     }

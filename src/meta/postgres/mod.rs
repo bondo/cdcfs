@@ -142,9 +142,7 @@ mod tests {
     #[test]
     fn it_can_read_and_write() {
         with_postgres_ready(|url| async move {
-            let mut store = PostgresMetaStore::new(&url)
-                .await
-                .expect("Can connect to database");
+            let mut store = PostgresMetaStore::new(&url).await.unwrap();
 
             let key = 42;
 
@@ -180,9 +178,7 @@ mod tests {
     #[test]
     fn it_can_remove_meta() {
         with_postgres_ready(|url| async move {
-            let mut store = PostgresMetaStore::new(&url)
-                .await
-                .expect("Can connect to database");
+            let mut store = PostgresMetaStore::new(&url).await.unwrap();
 
             let key = 19;
 
