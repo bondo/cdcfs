@@ -7,6 +7,8 @@ use dockertest::{waitfor::RunningWait, Composition, DockerTest, Image};
 use sqlx::postgres::PgPoolOptions;
 use tokio::time::sleep;
 
+const POSTGRES_PASSWORD: &str = "postgres";
+
 pub fn with_postgres_ready<T, Fut>(f: T)
 where
     T: FnOnce(String) -> Fut,
@@ -19,7 +21,13 @@ where
 
     let image = Image::with_repository("postgres").tag("15.3-alpine3.18");
     let mut composition = Composition::with_image(image)
-        .with_env([("POSTGRES_PASSWORD".to_string(), "postgres".to_string())].into())
+        .with_env(
+            [(
+                "POSTGRES_PASSWORD".to_string(),
+                POSTGRES_PASSWORD.to_string(),
+            )]
+            .into(),
+        )
         .with_wait_for(Box::new(RunningWait {
             check_interval: 1,
             max_checks: timeout.as_secs() + 1,
@@ -33,7 +41,7 @@ where
             let (ip, port) = handle
                 .host_port(5432)
                 .expect("Should have port 5432 mapped");
-            format!("postgresql://postgres:postgres@{ip}:{port}/postgres")
+            format!("postgresql://postgres:{POSTGRES_PASSWORD}@{ip}:{port}/postgres")
         };
 
         let fut = f(url.clone());
