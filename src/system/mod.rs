@@ -1,6 +1,6 @@
-use std::{fmt::Debug, hash::Hash};
+use std::{fmt::Debug, hash::Hash, io::Read};
 
-use fastcdc::v2020::FastCDC;
+use fastcdc::v2020::{FastCDC, StreamCDC};
 use wyhash::wyhash;
 
 use crate::{
@@ -36,20 +36,41 @@ where
         let mut hashes = vec![];
         for chunk in chunker {
             let bytes = &source[chunk.offset..chunk.offset + chunk.length];
-            let hash = wyhash(bytes, 42);
-            self.chunk_store
-                .insert(hash, bytes.to_owned())
-                .expect("Should be able to insert chunk");
-            hashes.push(hash);
+            hashes.push(self.write_chunk(bytes.to_owned()));
         }
+        self.write_meta(key, hashes, source.len()).await;
+    }
+
+    pub async fn upsert_stream<R: Read>(
+        &mut self,
+        key: K,
+        source: R,
+    ) -> Result<(), fastcdc::v2020::Error> {
+        let chunker = StreamCDC::new(source, MIN_SIZE, AVG_SIZE, MAX_SIZE);
+        let mut hashes = vec![];
+        let mut size: usize = 0;
+        for chunk in chunker {
+            let chunk = chunk?;
+            hashes.push(self.write_chunk(chunk.data));
+            size += chunk.length;
+        }
+        self.write_meta(key, hashes, size).await;
+        Ok(())
+    }
+
+    fn write_chunk(&mut self, bytes: Vec<u8>) -> u64 {
+        let hash = wyhash(&bytes, 42);
+
+        self.chunk_store
+            .insert(hash, bytes)
+            .expect("Should be able to insert chunk");
+
+        hash
+    }
+
+    async fn write_meta(&mut self, key: K, hashes: Vec<u64>, size: usize) {
         self.meta_store
-            .upsert(
-                key,
-                Meta {
-                    hashes,
-                    size: source.len(),
-                },
-            )
+            .upsert(key, Meta { hashes, size })
             .await
             .expect("Should be able to upsert meta");
     }
@@ -276,5 +297,37 @@ mod tests {
                 assert_eq!(result, Some(file));
             }
         });
+    }
+
+    #[tokio::test]
+    async fn can_stream_samples() {
+        let mut fs = System::new(MemoryChunkStore::new(), MemoryMetaStore::new());
+
+        let samples = vec![
+            "file_example_JPG_2500kB.jpg",
+            "file_example_OOG_5MG.ogg",
+            "file-example_PDF_1MB.pdf",
+            "file-sample_1MB.docx",
+        ];
+
+        let meta: Vec<(&str, fs::File, Vec<u8>)> = samples
+            .into_iter()
+            .map(|sample| {
+                let file_bytes = fs::read(format!("test/fixtures/{sample}"))
+                    .expect("Should be able to read fixture");
+                let file_stream = fs::File::open(format!("test/fixtures/{sample}"))
+                    .expect("Should be able to read fixture");
+                (sample, file_stream, file_bytes)
+            })
+            .collect();
+
+        for (name, file, _) in meta.iter() {
+            fs.upsert_stream(*name, file).await.unwrap();
+        }
+
+        for (name, _, bytes) in meta.into_iter() {
+            let result = fs.read(name).await;
+            assert_eq!(result, Some(bytes));
+        }
     }
 }
