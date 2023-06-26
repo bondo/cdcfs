@@ -1,7 +1,8 @@
 use core::fmt::Debug;
+use std::fmt::Display;
 
 pub trait ChunkStore: Debug {
-    type Error: Debug;
+    type Error: Debug + Display;
 
     fn get(&self, hash: &u64) -> Result<Vec<u8>, Self::Error>;
 

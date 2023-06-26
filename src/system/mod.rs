@@ -8,6 +8,10 @@ use crate::{
     meta::traits::{Meta, MetaStore},
 };
 
+use self::reader::Reader;
+
+mod reader;
+
 #[derive(Debug)]
 pub struct System<C: ChunkStore, M: MetaStore> {
     chunk_store: C,
@@ -90,6 +94,16 @@ where
             result.extend_from_slice(&chunk);
         }
         Some(result)
+    }
+
+    pub async fn read_stream(&self, key: K) -> Option<Reader<C>> {
+        let meta = self
+            .meta_store
+            .get(&key)
+            .await
+            .expect("Should be able to request meta read")?;
+
+        Some(Reader::new(meta.hashes.into(), &self.chunk_store))
     }
 
     pub async fn delete(&mut self, key: K) {
@@ -300,7 +314,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn can_stream_samples() {
+    async fn can_stream_write_samples() {
         let mut fs = System::new(MemoryChunkStore::new(), MemoryMetaStore::new());
 
         let samples = vec![
@@ -328,6 +342,38 @@ mod tests {
         for (name, _, bytes) in meta.into_iter() {
             let result = fs.read(name).await;
             assert_eq!(result, Some(bytes));
+        }
+    }
+
+    #[tokio::test]
+    async fn can_stream_read_samples() {
+        let mut fs = System::new(MemoryChunkStore::new(), MemoryMetaStore::new());
+
+        let samples = vec![
+            "file_example_JPG_2500kB.jpg",
+            "file_example_OOG_5MG.ogg",
+            "file-example_PDF_1MB.pdf",
+            "file-sample_1MB.docx",
+        ];
+
+        let meta: Vec<(&str, Vec<u8>)> = samples
+            .into_iter()
+            .map(|sample| {
+                let file = fs::read(format!("test/fixtures/{sample}"))
+                    .expect("Should be able to read fixture");
+                (sample, file)
+            })
+            .collect();
+
+        for (name, file) in meta.iter() {
+            fs.upsert(*name, file.as_slice()).await;
+        }
+
+        for (name, file) in meta.into_iter() {
+            let mut reader = fs.read_stream(name).await.expect("Should return stream");
+            let mut buf = vec![];
+            reader.read_to_end(&mut buf).unwrap();
+            assert_eq!(buf, file);
         }
     }
 }
