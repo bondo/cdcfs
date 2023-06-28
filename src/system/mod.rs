@@ -130,26 +130,23 @@ mod tests {
 
     #[tokio::test]
     async fn it_can_read_and_write() {
-        let source = "Hello World!".repeat(10_000);
+        let source = b"Hello World!".repeat(10_000);
         let mut fs = System::new(MemoryChunkStore::new(), MemoryMetaStore::new());
-        fs.upsert(42, source.as_bytes()).await;
-        assert_eq!(fs.read(42).await.map(String::from_utf8), Some(Ok(source)));
+        fs.upsert(42, &source).await;
+        assert_eq!(fs.read(42).await, Some(source));
     }
 
     #[tokio::test]
     async fn it_can_update() {
         let mut fs = System::new(MemoryChunkStore::new(), MemoryMetaStore::new());
 
-        let initial_source = "Initial contents";
-        fs.upsert(42, initial_source.as_bytes()).await;
+        let initial_source = b"Initial contents";
+        fs.upsert(42, initial_source).await;
 
-        let updated_source = "Updated contents";
-        fs.upsert(42, updated_source.as_bytes()).await;
+        let updated_source = b"Updated contents";
+        fs.upsert(42, updated_source).await;
 
-        assert_eq!(
-            fs.read(42).await.map(String::from_utf8),
-            Some(Ok(updated_source.to_string()))
-        );
+        assert_eq!(fs.read(42).await, Some(updated_source.to_vec()));
     }
 
     #[tokio::test]
@@ -187,9 +184,9 @@ mod tests {
         with_redis_ready(|url| async move {
             let mut fs = System::new(RedisChunkStore::new(url).unwrap(), MemoryMetaStore::new());
 
-            let source = "Hello World!".repeat(10_000);
-            fs.upsert(42, source.as_bytes()).await;
-            assert_eq!(fs.read(42).await.map(String::from_utf8), Some(Ok(source)));
+            let source = b"Hello World!".repeat(10_000);
+            fs.upsert(42, &source).await;
+            assert_eq!(fs.read(42).await, Some(source));
         });
     }
 
@@ -198,16 +195,13 @@ mod tests {
         with_redis_ready(|url| async move {
             let mut fs = System::new(RedisChunkStore::new(url).unwrap(), MemoryMetaStore::new());
 
-            let initial_source = "Initial contents";
-            fs.upsert(42, initial_source.as_bytes()).await;
+            let initial_source = b"Initial contents";
+            fs.upsert(42, initial_source).await;
 
-            let updated_source = "Updated contents";
-            fs.upsert(42, updated_source.as_bytes()).await;
+            let updated_source = b"Updated contents";
+            fs.upsert(42, updated_source).await;
 
-            assert_eq!(
-                fs.read(42).await.map(String::from_utf8),
-                Some(Ok(updated_source.to_string()))
-            );
+            assert_eq!(fs.read(42).await, Some(updated_source.to_vec()));
         });
     }
 
@@ -246,13 +240,13 @@ mod tests {
     #[test_log::test]
     fn it_can_read_and_write_with_postgres() {
         with_postgres_ready(|url| async move {
-            let source = "Hello World!".repeat(10_000);
+            let source = b"Hello World!".repeat(10_000);
             let mut fs = System::new(
                 MemoryChunkStore::new(),
                 PostgresMetaStore::new(&url).await.unwrap(),
             );
-            fs.upsert(42, source.as_bytes()).await;
-            assert_eq!(fs.read(42).await.map(String::from_utf8), Some(Ok(source)));
+            fs.upsert(42, &source).await;
+            assert_eq!(fs.read(42).await, Some(source));
         });
     }
 
@@ -264,16 +258,13 @@ mod tests {
                 PostgresMetaStore::new(&url).await.unwrap(),
             );
 
-            let initial_source = "Initial contents";
-            fs.upsert(42, initial_source.as_bytes()).await;
+            let initial_source = b"Initial contents";
+            fs.upsert(42, initial_source).await;
 
-            let updated_source = "Updated contents";
-            fs.upsert(42, updated_source.as_bytes()).await;
+            let updated_source = b"Updated contents";
+            fs.upsert(42, updated_source).await;
 
-            assert_eq!(
-                fs.read(42).await.map(String::from_utf8),
-                Some(Ok(updated_source.to_string()))
-            );
+            assert_eq!(fs.read(42).await, Some(updated_source.to_vec()));
         });
     }
 

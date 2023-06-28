@@ -40,7 +40,7 @@ mod tests {
         with_redis_ready(|url| async move {
             let mut store = RedisChunkStore::new(url).unwrap();
 
-            let source = "Here are some bytes!".as_bytes();
+            let source: &[u8] = b"Here are some bytes!";
             assert_eq!(store.insert(10, source.to_owned()), Ok(()));
 
             let result = store.get(&10);

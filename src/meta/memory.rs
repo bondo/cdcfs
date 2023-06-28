@@ -52,8 +52,7 @@ mod tests {
         assert_eq!(store.get(&key).await, Ok(None));
 
         let initial_meta = Meta {
-            hashes: "Here's some stuff for hashes"
-                .as_bytes()
+            hashes: b"Here's some stuff for hashes"
                 .iter()
                 .map(|v| *v as u64)
                 .collect(),
@@ -63,8 +62,7 @@ mod tests {
         assert_eq!(store.get(&key).await, Ok(Some(initial_meta)));
 
         let updated_meta = Meta {
-            hashes: "Here's some stuff other stuff"
-                .as_bytes()
+            hashes: b"Here's some stuff other stuff"
                 .iter()
                 .map(|v| *v as u64)
                 .collect(),
