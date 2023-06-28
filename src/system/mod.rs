@@ -86,7 +86,7 @@ where
             .await
             .expect("Should be able to request meta read")?;
         let mut result = Vec::with_capacity(meta.size);
-        for hash in meta.hashes.iter() {
+        for hash in &meta.hashes {
             let chunk = self
                 .chunk_store
                 .get(hash)
@@ -169,11 +169,11 @@ mod tests {
             })
             .collect();
 
-        for (name, file) in meta.iter() {
+        for (name, file) in &meta {
             fs.upsert(*name, file.as_slice()).await;
         }
 
-        for (name, file) in meta.into_iter() {
+        for (name, file) in meta {
             let result = fs.read(name).await;
             assert_eq!(result, Some(file));
         }
@@ -226,11 +226,11 @@ mod tests {
                 })
                 .collect();
 
-            for (name, file) in meta.iter() {
+            for (name, file) in &meta {
                 fs.upsert(*name, file.as_slice()).await;
             }
 
-            for (name, file) in meta.into_iter() {
+            for (name, file) in meta {
                 let result = fs.read(name).await;
                 assert_eq!(result, Some(file));
             }
@@ -293,11 +293,11 @@ mod tests {
                 })
                 .collect();
 
-            for (id, file) in meta.iter() {
+            for (id, file) in &meta {
                 fs.upsert(*id, file.as_slice()).await;
             }
 
-            for (id, file) in meta.into_iter() {
+            for (id, file) in meta {
                 let result = fs.read(id).await;
                 assert_eq!(result, Some(file));
             }
@@ -326,11 +326,11 @@ mod tests {
             })
             .collect();
 
-        for (name, file, _) in meta.iter() {
+        for (name, file, _) in &meta {
             fs.upsert_stream(*name, file).await.unwrap();
         }
 
-        for (name, _, bytes) in meta.into_iter() {
+        for (name, _, bytes) in meta {
             let result = fs.read(name).await;
             assert_eq!(result, Some(bytes));
         }
@@ -356,11 +356,11 @@ mod tests {
             })
             .collect();
 
-        for (name, file) in meta.iter() {
+        for (name, file) in &meta {
             fs.upsert(*name, file.as_slice()).await;
         }
 
-        for (name, file) in meta.into_iter() {
+        for (name, file) in meta {
             let mut reader = fs.read_stream(name).await.expect("Should return stream");
             let mut buf = vec![];
             reader.read_to_end(&mut buf).unwrap();

@@ -150,10 +150,7 @@ mod tests {
             assert_eq!(value, Ok(None));
 
             let initial_meta = Meta {
-                hashes: b"Here's some stuff for hashes"
-                    .iter()
-                    .map(|v| *v as u64)
-                    .collect(),
+                hashes: b"Here's some stuff for hashes".map(Into::into).to_vec(),
                 size: 1234,
             };
             assert_eq!(store.upsert(key, initial_meta.clone()).await, Ok(()));
@@ -161,10 +158,7 @@ mod tests {
             assert_eq!(value, Ok(Some(initial_meta)));
 
             let updated_meta = Meta {
-                hashes: b"Here's some stuff other stuff"
-                    .iter()
-                    .map(|v| *v as u64)
-                    .collect(),
+                hashes: b"Here's some stuff other stuff".map(Into::into).to_vec(),
                 size: 4321,
             };
             assert_eq!(store.upsert(key, updated_meta.clone()).await, Ok(()));
