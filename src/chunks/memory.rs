@@ -73,29 +73,29 @@ mod tests {
 
     #[test]
     fn it_can_read_and_write() {
-        let source: &[u8] = b"Here are some bytes!";
+        let source = b"Here are some bytes!".to_vec();
         let mut store = MemoryChunkStore::new();
-        assert_eq!(store.insert(10, source.to_owned()), Ok(()));
+        assert_eq!(store.insert(10, source.clone()), Ok(()));
 
         let result = store.get(&10);
-        assert_eq!(result, Ok(source.to_owned()));
+        assert_eq!(result, Ok(source));
     }
 
     #[test]
     fn it_cannot_update() {
         let mut store = MemoryChunkStore::new();
 
-        let initial_source: &[u8] = b"Initial contents";
-        assert_eq!(store.insert(42, initial_source.to_owned()), Ok(()));
+        let initial_source = b"Initial contents".to_vec();
+        assert_eq!(store.insert(42, initial_source.clone()), Ok(()));
 
-        let updated_source: &[u8] = b"Updated contents";
+        let updated_source = b"Updated contents".to_vec();
         assert_eq!(
-            store.insert(42, updated_source.to_owned()),
+            store.insert(42, updated_source),
             Err(MemoryChunkStoreError::AlreadyExists)
         );
 
         let result = store.get(&42);
-        assert_eq!(result, Ok(initial_source.to_owned()));
+        assert_eq!(result, Ok(initial_source));
     }
 
     #[test]

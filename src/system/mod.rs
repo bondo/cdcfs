@@ -39,8 +39,8 @@ where
         let chunker = FastCDC::new(source, MIN_SIZE, AVG_SIZE, MAX_SIZE);
         let mut hashes = vec![];
         for chunk in chunker {
-            let bytes = &source[chunk.offset..chunk.offset + chunk.length];
-            hashes.push(self.write_chunk(bytes.to_owned()));
+            let bytes = source[chunk.offset..chunk.offset + chunk.length].to_vec();
+            hashes.push(self.write_chunk(bytes));
         }
         self.write_meta(key, hashes, source.len()).await;
     }
