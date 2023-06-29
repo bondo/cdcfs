@@ -29,6 +29,10 @@ pub enum Error {
     ChunkStoreError(#[from] ChunkStoreError),
     #[error("Meta store error: {0}")]
     MetaStoreError(#[from] MetaStoreError),
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
+    #[error("Chunking error: {0}")]
+    ChunkingError(#[from] fastcdc::v2020::Error),
 }
 
 impl<K, C, M> System<C, M>
@@ -44,58 +48,46 @@ where
         }
     }
 
-    pub async fn upsert(&mut self, key: K, source: &[u8]) {
+    pub async fn upsert(&mut self, key: K, source: &[u8]) -> Result<(), Error> {
         let chunker = FastCDC::new(source, MIN_SIZE, AVG_SIZE, MAX_SIZE);
         let mut hashes = vec![];
         for chunk in chunker {
             let bytes = source[chunk.offset..chunk.offset + chunk.length].to_vec();
-            hashes.push(self.write_chunk(bytes));
+            hashes.push(self.write_chunk(bytes)?);
         }
-        self.write_meta(key, hashes, source.len()).await;
+        self.write_meta(key, hashes, source.len()).await
     }
 
-    pub async fn upsert_stream<R: Read>(
-        &mut self,
-        key: K,
-        source: R,
-    ) -> Result<(), fastcdc::v2020::Error> {
+    pub async fn upsert_stream<R: Read>(&mut self, key: K, source: R) -> Result<(), Error> {
         let chunker = StreamCDC::new(source, MIN_SIZE, AVG_SIZE, MAX_SIZE);
         let mut hashes = vec![];
         let mut size: usize = 0;
         for chunk in chunker {
             let chunk = chunk?;
-            hashes.push(self.write_chunk(chunk.data));
+            hashes.push(self.write_chunk(chunk.data)?);
             size += chunk.length;
         }
-        self.write_meta(key, hashes, size).await;
-        Ok(())
+        self.write_meta(key, hashes, size).await
     }
 
-    fn write_chunk(&mut self, bytes: Vec<u8>) -> u64 {
+    fn write_chunk(&mut self, bytes: Vec<u8>) -> Result<u64, Error> {
         let hash = wyhash(&bytes, 42);
 
-        self.chunk_store
-            .insert(hash, bytes)
-            .expect("Should be able to insert chunk");
+        self.chunk_store.insert(hash, bytes)?;
 
-        hash
+        Ok(hash)
     }
 
-    async fn write_meta(&mut self, key: K, hashes: Vec<u64>, size: usize) {
-        self.meta_store
-            .upsert(key, Meta { hashes, size })
-            .await
-            .expect("Should be able to upsert meta");
+    async fn write_meta(&mut self, key: K, hashes: Vec<u64>, size: usize) -> Result<(), Error> {
+        self.meta_store.upsert(key, Meta { hashes, size }).await?;
+        Ok(())
     }
 
     pub async fn read(&self, key: K) -> Result<Vec<u8>, Error> {
         let meta = self.meta_store.get(&key).await?;
         let mut result = Vec::with_capacity(meta.size);
         for hash in &meta.hashes {
-            let chunk = self
-                .chunk_store
-                .get(hash)
-                .expect("Hash should exist in map");
+            let chunk = self.chunk_store.get(hash)?;
             result.extend_from_slice(&chunk);
         }
         Ok(result)
@@ -107,11 +99,9 @@ where
         Ok(Reader::new(meta.hashes.into(), &self.chunk_store))
     }
 
-    pub async fn delete(&mut self, key: K) {
-        self.meta_store
-            .remove(&key)
-            .await
-            .expect("Should be able to remove meta");
+    pub async fn delete(&mut self, key: K) -> Result<(), Error> {
+        self.meta_store.remove(&key).await?;
+        Ok(())
     }
 }
 
@@ -133,7 +123,7 @@ mod tests {
     async fn it_can_read_and_write() {
         let source = b"Hello World!".repeat(10_000);
         let mut fs = System::new(MemoryChunkStore::new(), MemoryMetaStore::new());
-        fs.upsert(42, &source).await;
+        fs.upsert(42, &source).await.unwrap();
         assert_eq!(fs.read(42).await.unwrap(), source);
     }
 
@@ -142,10 +132,10 @@ mod tests {
         let mut fs = System::new(MemoryChunkStore::new(), MemoryMetaStore::new());
 
         let initial_source = b"Initial contents";
-        fs.upsert(42, initial_source).await;
+        fs.upsert(42, initial_source).await.unwrap();
 
         let updated_source = b"Updated contents";
-        fs.upsert(42, updated_source).await;
+        fs.upsert(42, updated_source).await.unwrap();
 
         assert_eq!(fs.read(42).await.unwrap(), updated_source);
     }
@@ -171,7 +161,7 @@ mod tests {
             .collect();
 
         for (name, file) in &meta {
-            fs.upsert(*name, file.as_slice()).await;
+            fs.upsert(*name, file.as_slice()).await.unwrap();
         }
 
         for (name, file) in meta {
@@ -186,7 +176,7 @@ mod tests {
             let mut fs = System::new(RedisChunkStore::new(url).unwrap(), MemoryMetaStore::new());
 
             let source = b"Hello World!".repeat(10_000);
-            fs.upsert(42, &source).await;
+            fs.upsert(42, &source).await.unwrap();
             assert_eq!(fs.read(42).await.unwrap(), source);
         });
     }
@@ -197,10 +187,10 @@ mod tests {
             let mut fs = System::new(RedisChunkStore::new(url).unwrap(), MemoryMetaStore::new());
 
             let initial_source = b"Initial contents";
-            fs.upsert(42, initial_source).await;
+            fs.upsert(42, initial_source).await.unwrap();
 
             let updated_source = b"Updated contents";
-            fs.upsert(42, updated_source).await;
+            fs.upsert(42, updated_source).await.unwrap();
 
             assert_eq!(fs.read(42).await.unwrap(), updated_source);
         });
@@ -228,7 +218,7 @@ mod tests {
                 .collect();
 
             for (name, file) in &meta {
-                fs.upsert(*name, file.as_slice()).await;
+                fs.upsert(*name, file.as_slice()).await.unwrap();
             }
 
             for (name, file) in meta {
@@ -246,7 +236,7 @@ mod tests {
                 MemoryChunkStore::new(),
                 PostgresMetaStore::new(&url).await.unwrap(),
             );
-            fs.upsert(42, &source).await;
+            fs.upsert(42, &source).await.unwrap();
             assert_eq!(fs.read(42).await.unwrap(), source);
         });
     }
@@ -260,10 +250,10 @@ mod tests {
             );
 
             let initial_source = b"Initial contents";
-            fs.upsert(42, initial_source).await;
+            fs.upsert(42, initial_source).await.unwrap();
 
             let updated_source = b"Updated contents";
-            fs.upsert(42, updated_source).await;
+            fs.upsert(42, updated_source).await.unwrap();
 
             assert_eq!(fs.read(42).await.unwrap(), updated_source);
         });
@@ -295,7 +285,7 @@ mod tests {
                 .collect();
 
             for (id, file) in &meta {
-                fs.upsert(*id, file.as_slice()).await;
+                fs.upsert(*id, file.as_slice()).await.unwrap();
             }
 
             for (id, file) in meta {
@@ -358,7 +348,7 @@ mod tests {
             .collect();
 
         for (name, file) in &meta {
-            fs.upsert(*name, file.as_slice()).await;
+            fs.upsert(*name, file.as_slice()).await.unwrap();
         }
 
         for (name, file) in meta {
