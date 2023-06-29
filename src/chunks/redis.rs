@@ -1,7 +1,7 @@
 use anyhow::Context;
 use redis::{Client, Commands, IntoConnectionInfo};
 
-use super::{error::Result, traits::ChunkStore};
+use super::{error::Result, traits::ChunkStore, Error};
 
 #[derive(Debug)]
 pub struct RedisChunkStore(Client);
@@ -15,22 +15,29 @@ impl RedisChunkStore {
 
 impl ChunkStore for RedisChunkStore {
     fn get(&self, hash: &u64) -> Result<Vec<u8>> {
-        let val = self
-            .0
-            .get_connection()
-            .context("Redis error")?
-            .get(hash)
-            .context("Redis error")?;
+        let mut conn = self.0.get_connection().context("Redis error")?;
+        if !conn.exists(hash).context("Redis error")? {
+            return Err(Error::NotFound);
+        }
+        let val: Vec<u8> = conn.get(hash).context("Redis error")?;
         Ok(val)
     }
 
     fn insert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<()> {
-        self.0.set(hash, chunk).context("Redis error")?;
+        let mut conn = self.0.get_connection().context("Redis error")?;
+        if conn.exists(hash).context("Redis error")? {
+            return Err(Error::AlreadyExists);
+        }
+        conn.set(hash, chunk).context("Redis error")?;
         Ok(())
     }
 
     fn remove(&mut self, hash: &u64) -> Result<()> {
-        self.0.del(hash).context("Redis error")?;
+        let mut conn = self.0.get_connection().context("Redis error")?;
+        if !conn.exists(hash).context("Redis error")? {
+            return Err(Error::NotFound);
+        }
+        conn.del(hash).context("Redis error")?;
         Ok(())
     }
 }
@@ -39,7 +46,7 @@ impl ChunkStore for RedisChunkStore {
 mod tests {
     use test_log::test;
 
-    use crate::tests::redis::with_redis_ready;
+    use crate::tests::with_redis_ready;
 
     use super::*;
 
@@ -57,20 +64,40 @@ mod tests {
     }
 
     #[test]
-    fn it_returns_empty_data_when_reading_missing_item() {
+    fn it_cannot_update() {
         with_redis_ready(|url| async move {
-            let store = RedisChunkStore::new(url).unwrap();
+            let mut store = RedisChunkStore::new(url).unwrap();
 
-            assert_eq!(store.get(&60).unwrap(), Vec::<u8>::new());
+            let initial_source = b"Initial contents".to_vec();
+            store.insert(42, initial_source.clone()).unwrap();
+
+            let updated_source = b"Updated contents".to_vec();
+            assert!(matches!(
+                store.insert(42, updated_source),
+                Err(Error::AlreadyExists)
+            ));
+
+            let result = store.get(&42).unwrap();
+            assert_eq!(result, initial_source);
+
+            store.remove(&42).unwrap();
+            assert!(matches!(store.get(&42), Err(Error::NotFound)));
         });
     }
 
     #[test]
-    fn it_ignores_remove_of_missing_item() {
+    fn it_cannot_read_missing_item() {
+        with_redis_ready(|url| async move {
+            let store = RedisChunkStore::new(url).unwrap();
+            assert!(matches!(store.get(&60), Err(Error::NotFound)));
+        });
+    }
+
+    #[test]
+    fn it_cannot_remove_missing_item() {
         with_redis_ready(|url| async move {
             let mut store = RedisChunkStore::new(url).unwrap();
-
-            store.remove(&60).unwrap();
+            assert!(matches!(store.remove(&60), Err(Error::NotFound)));
         });
     }
 }

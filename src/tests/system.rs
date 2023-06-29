@@ -1,7 +1,7 @@
 use std::{fs, io::Read};
 
 use crate::{
-    tests::{postgres::with_postgres_ready, redis::with_redis_ready},
+    tests::{with_postgres_ready, with_redis_ready},
     MemoryChunkStore, MemoryMetaStore, PostgresMetaStore, RedisChunkStore, System,
 };
 

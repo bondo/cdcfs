@@ -9,6 +9,7 @@
     "Hasher",
     "isready",
     "nohash",
+    "proptest",
     "rustls",
     "thiserror",
     "waitfor",

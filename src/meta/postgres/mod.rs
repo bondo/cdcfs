@@ -124,7 +124,7 @@ impl MetaStore for PostgresMetaStore {
 mod tests {
     use test_log::test;
 
-    use crate::tests::postgres::with_postgres_ready;
+    use crate::tests::with_postgres_ready;
 
     use super::*;
 
