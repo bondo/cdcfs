@@ -1,19 +1,16 @@
 use std::{fmt::Debug, hash::Hash, io::Read};
 
 use fastcdc::v2020::{FastCDC, StreamCDC};
-use thiserror::Error;
 use wyhash::wyhash;
 
 use crate::{
-    chunks::{error::Error as ChunkStoreError, traits::ChunkStore},
-    meta::{
-        error::Error as MetaStoreError,
-        traits::{Meta, MetaStore},
-    },
+    chunks::traits::ChunkStore,
+    meta::traits::{Meta, MetaStore},
 };
 
-use self::reader::Reader;
+use self::{error::Result, reader::Reader};
 
+mod error;
 mod reader;
 
 #[derive(Debug)]
@@ -25,20 +22,6 @@ pub struct System<C: ChunkStore, M: MetaStore> {
 static AVG_SIZE: u32 = u32::pow(2, 14);
 static MIN_SIZE: u32 = AVG_SIZE / 4;
 static MAX_SIZE: u32 = AVG_SIZE * 4;
-
-#[derive(Debug, Error)]
-pub enum Error {
-    #[error("Chunk store error: {0}")]
-    ChunkStoreError(#[from] ChunkStoreError),
-    #[error("Meta store error: {0}")]
-    MetaStoreError(#[from] MetaStoreError),
-    #[error("IO error: {0}")]
-    IoError(#[from] std::io::Error),
-    #[error("Chunking error: {0}")]
-    ChunkingError(#[from] fastcdc::v2020::Error),
-}
-
-type Result<T> = std::result::Result<T, Error>;
 
 impl<K, C, M> System<C, M>
 where
@@ -102,6 +85,17 @@ where
         let meta = self.meta_store.get(&key).await?;
 
         Ok(Reader::new(meta.hashes.into(), &self.chunk_store))
+    }
+
+    pub async fn read_into(&self, key: K, writer: &mut impl std::io::Write) -> Result<()> {
+        let meta = self.meta_store.get(&key).await?;
+
+        for hash in &meta.hashes {
+            let chunk = self.chunk_store.get(hash)?;
+            writer.write_all(&chunk)?;
+        }
+
+        Ok(())
     }
 
     pub async fn delete(&mut self, key: K) -> Result<()> {
@@ -360,6 +354,37 @@ mod tests {
             let mut reader = fs.read_stream(name).await.expect("Should return stream");
             let mut buf = vec![];
             reader.read_to_end(&mut buf).unwrap();
+            assert_eq!(buf, file);
+        }
+    }
+
+    #[tokio::test]
+    async fn can_read_into_with_samples() {
+        let mut fs = System::new(MemoryChunkStore::new(), MemoryMetaStore::new());
+
+        let samples = vec![
+            "file_example_JPG_2500kB.jpg",
+            "file_example_OOG_5MG.ogg",
+            "file-example_PDF_1MB.pdf",
+            "file-sample_1MB.docx",
+        ];
+
+        let meta: Vec<(&str, Vec<u8>)> = samples
+            .into_iter()
+            .map(|sample| {
+                let file = fs::read(format!("test/fixtures/{sample}"))
+                    .expect("Should be able to read fixture");
+                (sample, file)
+            })
+            .collect();
+
+        for (name, file) in &meta {
+            fs.upsert(*name, file.as_slice()).await.unwrap();
+        }
+
+        for (name, file) in meta {
+            let mut buf = vec![];
+            fs.read_into(name, &mut buf).await.unwrap();
             assert_eq!(buf, file);
         }
     }
