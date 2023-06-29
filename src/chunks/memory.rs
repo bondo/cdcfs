@@ -5,7 +5,7 @@ use std::{
 
 use nohash_hasher::NoHashHasher;
 
-use super::traits::ChunkStore;
+use super::traits::{ChunkStore, ChunkStoreError};
 
 #[derive(Debug)]
 pub struct MemoryChunkStore(HashMap<u64, Vec<u8>, BuildHasherDefault<NoHashHasher<u64>>>);
@@ -22,47 +22,30 @@ impl Default for MemoryChunkStore {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum MemoryChunkStoreError {
-    NotFound,
-    AlreadyExists,
-}
-
-impl std::fmt::Display for MemoryChunkStoreError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::NotFound => write!(f, "Chunk not found"),
-            Self::AlreadyExists => write!(f, "Chunk already exists"),
-        }
-    }
-}
-
 impl ChunkStore for MemoryChunkStore {
-    type Error = MemoryChunkStoreError;
-
-    fn get(&self, hash: &u64) -> Result<Vec<u8>, Self::Error> {
+    fn get(&self, hash: &u64) -> Result<Vec<u8>, ChunkStoreError> {
         if let Some(chunk) = self.0.get(hash) {
             Ok(chunk.to_owned())
         } else {
-            Err(MemoryChunkStoreError::NotFound)
+            Err(ChunkStoreError::NotFound)
         }
     }
 
-    fn insert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<(), Self::Error> {
+    fn insert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<(), ChunkStoreError> {
         match self.0.entry(hash) {
             Entry::Vacant(entry) => {
                 entry.insert(chunk);
                 Ok(())
             }
-            Entry::Occupied(_) => Err(MemoryChunkStoreError::AlreadyExists),
+            Entry::Occupied(_) => Err(ChunkStoreError::AlreadyExists),
         }
     }
 
-    fn remove(&mut self, hash: &u64) -> Result<(), Self::Error> {
+    fn remove(&mut self, hash: &u64) -> Result<(), ChunkStoreError> {
         if self.0.remove(hash).is_some() {
             Ok(())
         } else {
-            Err(MemoryChunkStoreError::NotFound)
+            Err(ChunkStoreError::NotFound)
         }
     }
 }
@@ -75,10 +58,10 @@ mod tests {
     fn it_can_read_and_write() {
         let source = b"Here are some bytes!".to_vec();
         let mut store = MemoryChunkStore::new();
-        assert_eq!(store.insert(10, source.clone()), Ok(()));
+        store.insert(10, source.clone()).unwrap();
 
-        let result = store.get(&10);
-        assert_eq!(result, Ok(source));
+        let result = store.get(&10).unwrap();
+        assert_eq!(result, source);
     }
 
     #[test]
@@ -86,27 +69,27 @@ mod tests {
         let mut store = MemoryChunkStore::new();
 
         let initial_source = b"Initial contents".to_vec();
-        assert_eq!(store.insert(42, initial_source.clone()), Ok(()));
+        store.insert(42, initial_source.clone()).unwrap();
 
         let updated_source = b"Updated contents".to_vec();
-        assert_eq!(
+        assert!(matches!(
             store.insert(42, updated_source),
-            Err(MemoryChunkStoreError::AlreadyExists)
-        );
+            Err(ChunkStoreError::AlreadyExists)
+        ));
 
-        let result = store.get(&42);
-        assert_eq!(result, Ok(initial_source));
+        let result = store.get(&42).unwrap();
+        assert_eq!(result, initial_source);
     }
 
     #[test]
     fn it_cannot_read_missing_item() {
         let store = MemoryChunkStore::new();
-        assert_eq!(store.get(&60), Err(MemoryChunkStoreError::NotFound));
+        assert!(matches!(store.get(&60), Err(ChunkStoreError::NotFound)));
     }
 
     #[test]
     fn it_cannot_remove_missing_item() {
         let mut store = MemoryChunkStore::new();
-        assert_eq!(store.remove(&60), Err(MemoryChunkStoreError::NotFound));
+        assert!(matches!(store.remove(&60), Err(ChunkStoreError::NotFound)));
     }
 }

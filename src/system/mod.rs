@@ -1,11 +1,12 @@
 use std::{fmt::Debug, hash::Hash, io::Read};
 
 use fastcdc::v2020::{FastCDC, StreamCDC};
+use thiserror::Error;
 use wyhash::wyhash;
 
 use crate::{
-    chunks::traits::ChunkStore,
-    meta::traits::{Meta, MetaStore},
+    chunks::traits::{ChunkStore, ChunkStoreError},
+    meta::traits::{Meta, MetaStore, MetaStoreError},
 };
 
 use self::reader::Reader;
@@ -21,6 +22,14 @@ pub struct System<C: ChunkStore, M: MetaStore> {
 static AVG_SIZE: u32 = u32::pow(2, 14);
 static MIN_SIZE: u32 = AVG_SIZE / 4;
 static MAX_SIZE: u32 = AVG_SIZE * 4;
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("Chunk store error: {0}")]
+    ChunkStoreError(#[from] ChunkStoreError),
+    #[error("Meta store error: {0}")]
+    MetaStoreError(#[from] MetaStoreError),
+}
 
 impl<K, C, M> System<C, M>
 where
@@ -79,12 +88,8 @@ where
             .expect("Should be able to upsert meta");
     }
 
-    pub async fn read(&self, key: K) -> Option<Vec<u8>> {
-        let meta = self
-            .meta_store
-            .get(&key)
-            .await
-            .expect("Should be able to request meta read")?;
+    pub async fn read(&self, key: K) -> Result<Vec<u8>, Error> {
+        let meta = self.meta_store.get(&key).await?;
         let mut result = Vec::with_capacity(meta.size);
         for hash in &meta.hashes {
             let chunk = self
@@ -93,17 +98,13 @@ where
                 .expect("Hash should exist in map");
             result.extend_from_slice(&chunk);
         }
-        Some(result)
+        Ok(result)
     }
 
-    pub async fn read_stream(&self, key: K) -> Option<Reader<C>> {
-        let meta = self
-            .meta_store
-            .get(&key)
-            .await
-            .expect("Should be able to request meta read")?;
+    pub async fn read_stream(&self, key: K) -> Result<Reader<C>, Error> {
+        let meta = self.meta_store.get(&key).await?;
 
-        Some(Reader::new(meta.hashes.into(), &self.chunk_store))
+        Ok(Reader::new(meta.hashes.into(), &self.chunk_store))
     }
 
     pub async fn delete(&mut self, key: K) {
@@ -133,7 +134,7 @@ mod tests {
         let source = b"Hello World!".repeat(10_000);
         let mut fs = System::new(MemoryChunkStore::new(), MemoryMetaStore::new());
         fs.upsert(42, &source).await;
-        assert_eq!(fs.read(42).await, Some(source));
+        assert_eq!(fs.read(42).await.unwrap(), source);
     }
 
     #[tokio::test]
@@ -146,7 +147,7 @@ mod tests {
         let updated_source = b"Updated contents";
         fs.upsert(42, updated_source).await;
 
-        assert_eq!(fs.read(42).await, Some(updated_source.to_vec()));
+        assert_eq!(fs.read(42).await.unwrap(), updated_source);
     }
 
     #[tokio::test]
@@ -174,8 +175,8 @@ mod tests {
         }
 
         for (name, file) in meta {
-            let result = fs.read(name).await;
-            assert_eq!(result, Some(file));
+            let result = fs.read(name).await.unwrap();
+            assert_eq!(result, file);
         }
     }
 
@@ -186,7 +187,7 @@ mod tests {
 
             let source = b"Hello World!".repeat(10_000);
             fs.upsert(42, &source).await;
-            assert_eq!(fs.read(42).await, Some(source));
+            assert_eq!(fs.read(42).await.unwrap(), source);
         });
     }
 
@@ -201,7 +202,7 @@ mod tests {
             let updated_source = b"Updated contents";
             fs.upsert(42, updated_source).await;
 
-            assert_eq!(fs.read(42).await, Some(updated_source.to_vec()));
+            assert_eq!(fs.read(42).await.unwrap(), updated_source);
         });
     }
 
@@ -231,8 +232,8 @@ mod tests {
             }
 
             for (name, file) in meta {
-                let result = fs.read(name).await;
-                assert_eq!(result, Some(file));
+                let result = fs.read(name).await.unwrap();
+                assert_eq!(result, file);
             }
         });
     }
@@ -246,7 +247,7 @@ mod tests {
                 PostgresMetaStore::new(&url).await.unwrap(),
             );
             fs.upsert(42, &source).await;
-            assert_eq!(fs.read(42).await, Some(source));
+            assert_eq!(fs.read(42).await.unwrap(), source);
         });
     }
 
@@ -264,7 +265,7 @@ mod tests {
             let updated_source = b"Updated contents";
             fs.upsert(42, updated_source).await;
 
-            assert_eq!(fs.read(42).await, Some(updated_source.to_vec()));
+            assert_eq!(fs.read(42).await.unwrap(), updated_source);
         });
     }
 
@@ -298,8 +299,8 @@ mod tests {
             }
 
             for (id, file) in meta {
-                let result = fs.read(id).await;
-                assert_eq!(result, Some(file));
+                let result = fs.read(id).await.unwrap();
+                assert_eq!(result, file);
             }
         });
     }
@@ -331,8 +332,8 @@ mod tests {
         }
 
         for (name, _, bytes) in meta {
-            let result = fs.read(name).await;
-            assert_eq!(result, Some(bytes));
+            let result = fs.read(name).await.unwrap();
+            assert_eq!(result, bytes);
         }
     }
 

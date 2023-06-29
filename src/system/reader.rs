@@ -1,6 +1,5 @@
 use std::{
     collections::VecDeque,
-    fmt::Display,
     io::{Cursor, Read},
 };
 
@@ -24,7 +23,7 @@ impl<'a, C: ChunkStore> Reader<'a, C> {
     }
 }
 
-impl<'a, E: Display, C: ChunkStore<Error = E>> Read for Reader<'a, C> {
+impl<'a, C: ChunkStore> Read for Reader<'a, C> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         if !self.buf.has_remaining() {
             let Some(hash) = self.hashes.pop_front() else {

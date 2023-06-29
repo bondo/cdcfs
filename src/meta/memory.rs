@@ -1,9 +1,9 @@
 use core::fmt::Debug;
-use std::{collections::HashMap, convert::Infallible, hash::Hash};
+use std::{collections::HashMap, hash::Hash};
 
 use async_trait::async_trait;
 
-use super::traits::{Meta, MetaStore};
+use super::traits::{Meta, MetaStore, MetaStoreError};
 
 #[derive(Debug)]
 pub struct MemoryMetaStore<K: Eq + Hash>(HashMap<K, Meta>);
@@ -23,18 +23,20 @@ impl<K: Eq + Hash> Default for MemoryMetaStore<K> {
 #[async_trait]
 impl<K: Debug + Eq + Hash + Send + Sync> MetaStore for MemoryMetaStore<K> {
     type Key = K;
-    type Error = Infallible;
 
-    async fn get(&self, key: &Self::Key) -> Result<Option<Meta>, Self::Error> {
-        Ok(self.0.get(key).map(|v| v.to_owned()))
+    async fn get(&self, key: &Self::Key) -> Result<Meta, MetaStoreError> {
+        self.0
+            .get(key)
+            .map(|v| v.to_owned())
+            .ok_or(MetaStoreError::NotFound)
     }
 
-    async fn upsert(&mut self, key: Self::Key, meta: Meta) -> Result<(), Self::Error> {
+    async fn upsert(&mut self, key: Self::Key, meta: Meta) -> Result<(), MetaStoreError> {
         self.0.insert(key, meta);
         Ok(())
     }
 
-    async fn remove(&mut self, key: &Self::Key) -> Result<(), Self::Error> {
+    async fn remove(&mut self, key: &Self::Key) -> Result<(), MetaStoreError> {
         self.0.remove(key);
         Ok(())
     }
@@ -49,21 +51,24 @@ mod tests {
         let mut store = MemoryMetaStore::new();
         let key = 42;
 
-        assert_eq!(store.get(&key).await, Ok(None));
+        assert!(matches!(
+            store.get(&key).await,
+            Err(MetaStoreError::NotFound)
+        ));
 
         let initial_meta = Meta {
             hashes: b"Here's some stuff for hashes".map(Into::into).to_vec(),
             size: 1234,
         };
-        assert_eq!(store.upsert(key, initial_meta.clone()).await, Ok(()));
-        assert_eq!(store.get(&key).await, Ok(Some(initial_meta)));
+        store.upsert(key, initial_meta.clone()).await.unwrap();
+        assert_eq!(store.get(&key).await.unwrap(), initial_meta);
 
         let updated_meta = Meta {
             hashes: b"Here's some stuff other stuff".map(Into::into).to_vec(),
             size: 4321,
         };
-        assert_eq!(store.upsert(key, updated_meta.clone()).await, Ok(()));
-        assert_eq!(store.get(&key).await, Ok(Some(updated_meta)));
+        store.upsert(key, updated_meta.clone()).await.unwrap();
+        assert_eq!(store.get(&key).await.unwrap(), updated_meta);
     }
 
     #[tokio::test]
@@ -71,19 +76,25 @@ mod tests {
         let mut store = MemoryMetaStore::new();
         let key = "abcdefg";
 
-        assert_eq!(store.get(&key).await, Ok(None));
-        assert_eq!(store.remove(&key).await, Ok(()));
+        assert!(matches!(
+            store.get(&key).await,
+            Err(MetaStoreError::NotFound)
+        ));
+        store.remove(&key).await.unwrap();
 
         let meta = Meta {
             hashes: [10; 20].into(),
             size: 1234,
         };
-        assert_eq!(store.upsert(key, meta.clone()).await, Ok(()));
-        assert_eq!(store.get(&key).await, Ok(Some(meta)));
+        store.upsert(key, meta.clone()).await.unwrap();
+        assert_eq!(store.get(&key).await.unwrap(), meta);
 
-        assert_eq!(store.remove(&key).await, Ok(()));
-        assert_eq!(store.get(&key).await, Ok(None));
+        store.remove(&key).await.unwrap();
+        assert!(matches!(
+            store.get(&key).await,
+            Err(MetaStoreError::NotFound)
+        ));
 
-        assert_eq!(store.remove(&key).await, Ok(()));
+        store.remove(&key).await.unwrap();
     }
 }

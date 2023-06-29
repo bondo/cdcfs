@@ -1,6 +1,7 @@
+use anyhow::Context;
 use redis::{Client, Commands, IntoConnectionInfo, RedisError};
 
-use super::traits::ChunkStore;
+use super::traits::{ChunkStore, ChunkStoreError};
 
 #[derive(Debug)]
 pub struct RedisChunkStore(Client);
@@ -12,18 +13,24 @@ impl RedisChunkStore {
 }
 
 impl ChunkStore for RedisChunkStore {
-    type Error = RedisError;
-
-    fn get(&self, hash: &u64) -> Result<Vec<u8>, Self::Error> {
-        self.0.get_connection()?.get(hash)
+    fn get(&self, hash: &u64) -> Result<Vec<u8>, ChunkStoreError> {
+        let val = self
+            .0
+            .get_connection()
+            .context("Redis error")?
+            .get(hash)
+            .context("Redis error")?;
+        Ok(val)
     }
 
-    fn insert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<(), Self::Error> {
-        self.0.set(hash, chunk)
+    fn insert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<(), ChunkStoreError> {
+        self.0.set(hash, chunk).context("Redis error")?;
+        Ok(())
     }
 
-    fn remove(&mut self, hash: &u64) -> Result<(), Self::Error> {
-        self.0.del(hash)
+    fn remove(&mut self, hash: &u64) -> Result<(), ChunkStoreError> {
+        self.0.del(hash).context("Redis error")?;
+        Ok(())
     }
 }
 
@@ -41,10 +48,10 @@ mod tests {
             let mut store = RedisChunkStore::new(url).unwrap();
 
             let source = b"Here are some bytes!".to_vec();
-            assert_eq!(store.insert(10, source.clone()), Ok(()));
+            store.insert(10, source.clone()).unwrap();
 
-            let result = store.get(&10);
-            assert_eq!(result, Ok(source));
+            let result = store.get(&10).unwrap();
+            assert_eq!(result, source);
         });
     }
 
@@ -53,7 +60,7 @@ mod tests {
         with_redis_ready(|url| async move {
             let store = RedisChunkStore::new(url).unwrap();
 
-            assert_eq!(store.get(&60), Ok(vec![]));
+            assert_eq!(store.get(&60).unwrap(), Vec::<u8>::new());
         });
     }
 
@@ -62,7 +69,7 @@ mod tests {
         with_redis_ready(|url| async move {
             let mut store = RedisChunkStore::new(url).unwrap();
 
-            assert_eq!(store.remove(&60), Ok(()));
+            store.remove(&60).unwrap();
         });
     }
 }
