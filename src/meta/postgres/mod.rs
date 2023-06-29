@@ -120,13 +120,11 @@ impl MetaStore for PostgresMetaStore {
     }
 }
 
-// To run tests, first run `docker pull postgres:15.3-alpine3.18` locally
-
 #[cfg(test)]
 mod tests {
     use test_log::test;
 
-    use crate::test::postgres::with_postgres_ready;
+    use crate::tests::postgres::with_postgres_ready;
 
     use super::*;
 

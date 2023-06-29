@@ -39,7 +39,7 @@ impl ChunkStore for RedisChunkStore {
 mod tests {
     use test_log::test;
 
-    use crate::test::redis::with_redis_ready;
+    use crate::tests::redis::with_redis_ready;
 
     use super::*;
 

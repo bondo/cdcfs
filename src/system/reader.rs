@@ -5,7 +5,7 @@ use std::{
 
 use bytes::Buf;
 
-use crate::chunks::traits::ChunkStore;
+use crate::chunks::ChunkStore;
 
 pub struct Reader<'a, C: ChunkStore> {
     buf: Cursor<Vec<u8>>,
@@ -44,7 +44,7 @@ impl<'a, C: ChunkStore> Read for Reader<'a, C> {
 mod tests {
     use std::io::Read;
 
-    use crate::chunks::{memory::MemoryChunkStore, traits::ChunkStore};
+    use crate::chunks::{ChunkStore, MemoryChunkStore};
 
     use super::Reader;
 
