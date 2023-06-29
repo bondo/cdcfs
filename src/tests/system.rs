@@ -24,6 +24,14 @@ async fn it_can_update() {
     fs.upsert(42, updated_source).await.unwrap();
 
     assert_eq!(fs.read(42).await.unwrap(), updated_source);
+
+    fs.delete(42).await.unwrap();
+    assert!(matches!(
+        fs.read(42).await,
+        Err(crate::system::Error::MetaStore(
+            crate::meta::Error::NotFound
+        ))
+    ));
 }
 
 #[tokio::test]

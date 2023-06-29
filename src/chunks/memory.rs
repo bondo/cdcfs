@@ -82,6 +82,9 @@ mod tests {
 
         let result = store.get(&42).unwrap();
         assert_eq!(result, initial_source);
+
+        store.remove(&42).unwrap();
+        assert!(matches!(store.get(&42), Err(Error::NotFound)));
     }
 
     #[test]
