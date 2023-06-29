@@ -5,7 +5,10 @@ use std::{
 
 use nohash_hasher::NoHashHasher;
 
-use super::traits::{ChunkStore, ChunkStoreError};
+use super::{
+    error::{Error, Result},
+    traits::ChunkStore,
+};
 
 #[derive(Debug)]
 pub struct MemoryChunkStore(HashMap<u64, Vec<u8>, BuildHasherDefault<NoHashHasher<u64>>>);
@@ -23,29 +26,29 @@ impl Default for MemoryChunkStore {
 }
 
 impl ChunkStore for MemoryChunkStore {
-    fn get(&self, hash: &u64) -> Result<Vec<u8>, ChunkStoreError> {
+    fn get(&self, hash: &u64) -> Result<Vec<u8>> {
         if let Some(chunk) = self.0.get(hash) {
             Ok(chunk.to_owned())
         } else {
-            Err(ChunkStoreError::NotFound)
+            Err(Error::NotFound)
         }
     }
 
-    fn insert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<(), ChunkStoreError> {
+    fn insert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<()> {
         match self.0.entry(hash) {
             Entry::Vacant(entry) => {
                 entry.insert(chunk);
                 Ok(())
             }
-            Entry::Occupied(_) => Err(ChunkStoreError::AlreadyExists),
+            Entry::Occupied(_) => Err(Error::AlreadyExists),
         }
     }
 
-    fn remove(&mut self, hash: &u64) -> Result<(), ChunkStoreError> {
+    fn remove(&mut self, hash: &u64) -> Result<()> {
         if self.0.remove(hash).is_some() {
             Ok(())
         } else {
-            Err(ChunkStoreError::NotFound)
+            Err(Error::NotFound)
         }
     }
 }
@@ -74,7 +77,7 @@ mod tests {
         let updated_source = b"Updated contents".to_vec();
         assert!(matches!(
             store.insert(42, updated_source),
-            Err(ChunkStoreError::AlreadyExists)
+            Err(Error::AlreadyExists)
         ));
 
         let result = store.get(&42).unwrap();
@@ -84,12 +87,12 @@ mod tests {
     #[test]
     fn it_cannot_read_missing_item() {
         let store = MemoryChunkStore::new();
-        assert!(matches!(store.get(&60), Err(ChunkStoreError::NotFound)));
+        assert!(matches!(store.get(&60), Err(Error::NotFound)));
     }
 
     #[test]
     fn it_cannot_remove_missing_item() {
         let mut store = MemoryChunkStore::new();
-        assert!(matches!(store.remove(&60), Err(ChunkStoreError::NotFound)));
+        assert!(matches!(store.remove(&60), Err(Error::NotFound)));
     }
 }

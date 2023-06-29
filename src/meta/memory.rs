@@ -3,7 +3,10 @@ use std::{collections::HashMap, hash::Hash};
 
 use async_trait::async_trait;
 
-use super::traits::{Meta, MetaStore, MetaStoreError};
+use super::{
+    error::{Error, Result},
+    traits::{Meta, MetaStore},
+};
 
 #[derive(Debug)]
 pub struct MemoryMetaStore<K: Eq + Hash>(HashMap<K, Meta>);
@@ -24,19 +27,16 @@ impl<K: Eq + Hash> Default for MemoryMetaStore<K> {
 impl<K: Debug + Eq + Hash + Send + Sync> MetaStore for MemoryMetaStore<K> {
     type Key = K;
 
-    async fn get(&self, key: &Self::Key) -> Result<Meta, MetaStoreError> {
-        self.0
-            .get(key)
-            .map(|v| v.to_owned())
-            .ok_or(MetaStoreError::NotFound)
+    async fn get(&self, key: &Self::Key) -> Result<Meta> {
+        self.0.get(key).map(|v| v.to_owned()).ok_or(Error::NotFound)
     }
 
-    async fn upsert(&mut self, key: Self::Key, meta: Meta) -> Result<(), MetaStoreError> {
+    async fn upsert(&mut self, key: Self::Key, meta: Meta) -> Result<()> {
         self.0.insert(key, meta);
         Ok(())
     }
 
-    async fn remove(&mut self, key: &Self::Key) -> Result<(), MetaStoreError> {
+    async fn remove(&mut self, key: &Self::Key) -> Result<()> {
         self.0.remove(key);
         Ok(())
     }
@@ -51,10 +51,7 @@ mod tests {
         let mut store = MemoryMetaStore::new();
         let key = 42;
 
-        assert!(matches!(
-            store.get(&key).await,
-            Err(MetaStoreError::NotFound)
-        ));
+        assert!(matches!(store.get(&key).await, Err(Error::NotFound)));
 
         let initial_meta = Meta {
             hashes: b"Here's some stuff for hashes".map(Into::into).to_vec(),
@@ -76,10 +73,7 @@ mod tests {
         let mut store = MemoryMetaStore::new();
         let key = "abcdefg";
 
-        assert!(matches!(
-            store.get(&key).await,
-            Err(MetaStoreError::NotFound)
-        ));
+        assert!(matches!(store.get(&key).await, Err(Error::NotFound)));
         store.remove(&key).await.unwrap();
 
         let meta = Meta {
@@ -90,10 +84,7 @@ mod tests {
         assert_eq!(store.get(&key).await.unwrap(), meta);
 
         store.remove(&key).await.unwrap();
-        assert!(matches!(
-            store.get(&key).await,
-            Err(MetaStoreError::NotFound)
-        ));
+        assert!(matches!(store.get(&key).await, Err(Error::NotFound)));
 
         store.remove(&key).await.unwrap();
     }

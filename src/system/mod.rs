@@ -5,8 +5,11 @@ use thiserror::Error;
 use wyhash::wyhash;
 
 use crate::{
-    chunks::traits::{ChunkStore, ChunkStoreError},
-    meta::traits::{Meta, MetaStore, MetaStoreError},
+    chunks::{error::Error as ChunkStoreError, traits::ChunkStore},
+    meta::{
+        error::Error as MetaStoreError,
+        traits::{Meta, MetaStore},
+    },
 };
 
 use self::reader::Reader;
@@ -35,6 +38,8 @@ pub enum Error {
     ChunkingError(#[from] fastcdc::v2020::Error),
 }
 
+type Result<T> = std::result::Result<T, Error>;
+
 impl<K, C, M> System<C, M>
 where
     K: Debug + Eq + Hash,
@@ -48,7 +53,7 @@ where
         }
     }
 
-    pub async fn upsert(&mut self, key: K, source: &[u8]) -> Result<(), Error> {
+    pub async fn upsert(&mut self, key: K, source: &[u8]) -> Result<()> {
         let chunker = FastCDC::new(source, MIN_SIZE, AVG_SIZE, MAX_SIZE);
         let mut hashes = vec![];
         for chunk in chunker {
@@ -58,7 +63,7 @@ where
         self.write_meta(key, hashes, source.len()).await
     }
 
-    pub async fn upsert_stream<R: Read>(&mut self, key: K, source: R) -> Result<(), Error> {
+    pub async fn upsert_stream<R: Read>(&mut self, key: K, source: R) -> Result<()> {
         let chunker = StreamCDC::new(source, MIN_SIZE, AVG_SIZE, MAX_SIZE);
         let mut hashes = vec![];
         let mut size: usize = 0;
@@ -70,7 +75,7 @@ where
         self.write_meta(key, hashes, size).await
     }
 
-    fn write_chunk(&mut self, bytes: Vec<u8>) -> Result<u64, Error> {
+    fn write_chunk(&mut self, bytes: Vec<u8>) -> Result<u64> {
         let hash = wyhash(&bytes, 42);
 
         self.chunk_store.insert(hash, bytes)?;
@@ -78,12 +83,12 @@ where
         Ok(hash)
     }
 
-    async fn write_meta(&mut self, key: K, hashes: Vec<u64>, size: usize) -> Result<(), Error> {
+    async fn write_meta(&mut self, key: K, hashes: Vec<u64>, size: usize) -> Result<()> {
         self.meta_store.upsert(key, Meta { hashes, size }).await?;
         Ok(())
     }
 
-    pub async fn read(&self, key: K) -> Result<Vec<u8>, Error> {
+    pub async fn read(&self, key: K) -> Result<Vec<u8>> {
         let meta = self.meta_store.get(&key).await?;
         let mut result = Vec::with_capacity(meta.size);
         for hash in &meta.hashes {
@@ -93,13 +98,13 @@ where
         Ok(result)
     }
 
-    pub async fn read_stream(&self, key: K) -> Result<Reader<C>, Error> {
+    pub async fn read_stream(&self, key: K) -> Result<Reader<C>> {
         let meta = self.meta_store.get(&key).await?;
 
         Ok(Reader::new(meta.hashes.into(), &self.chunk_store))
     }
 
-    pub async fn delete(&mut self, key: K) -> Result<(), Error> {
+    pub async fn delete(&mut self, key: K) -> Result<()> {
         self.meta_store.remove(&key).await?;
         Ok(())
     }

@@ -1,23 +1,11 @@
 use core::fmt::Debug;
 
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum ChunkStoreError {
-    #[error("Chunk not found")]
-    NotFound,
-
-    #[error("Chunk already exists")]
-    AlreadyExists,
-
-    #[error("Internal error: {0}")]
-    Internal(#[from] anyhow::Error),
-}
+use super::error::Result;
 
 pub trait ChunkStore: Debug {
-    fn get(&self, hash: &u64) -> Result<Vec<u8>, ChunkStoreError>;
+    fn get(&self, hash: &u64) -> Result<Vec<u8>>;
 
-    fn insert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<(), ChunkStoreError>;
+    fn insert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<()>;
 
-    fn remove(&mut self, hash: &u64) -> Result<(), ChunkStoreError>;
+    fn remove(&mut self, hash: &u64) -> Result<()>;
 }

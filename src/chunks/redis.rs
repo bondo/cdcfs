@@ -1,19 +1,20 @@
 use anyhow::Context;
-use redis::{Client, Commands, IntoConnectionInfo, RedisError};
+use redis::{Client, Commands, IntoConnectionInfo};
 
-use super::traits::{ChunkStore, ChunkStoreError};
+use super::{error::Result, traits::ChunkStore};
 
 #[derive(Debug)]
 pub struct RedisChunkStore(Client);
 
 impl RedisChunkStore {
-    pub fn new<T: IntoConnectionInfo>(params: T) -> Result<RedisChunkStore, RedisError> {
-        Client::open(params).map(Self)
+    pub fn new<T: IntoConnectionInfo>(params: T) -> Result<RedisChunkStore> {
+        let client = Client::open(params).context("Redis error")?;
+        Ok(Self(client))
     }
 }
 
 impl ChunkStore for RedisChunkStore {
-    fn get(&self, hash: &u64) -> Result<Vec<u8>, ChunkStoreError> {
+    fn get(&self, hash: &u64) -> Result<Vec<u8>> {
         let val = self
             .0
             .get_connection()
@@ -23,12 +24,12 @@ impl ChunkStore for RedisChunkStore {
         Ok(val)
     }
 
-    fn insert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<(), ChunkStoreError> {
+    fn insert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<()> {
         self.0.set(hash, chunk).context("Redis error")?;
         Ok(())
     }
 
-    fn remove(&mut self, hash: &u64) -> Result<(), ChunkStoreError> {
+    fn remove(&mut self, hash: &u64) -> Result<()> {
         self.0.del(hash).context("Redis error")?;
         Ok(())
     }

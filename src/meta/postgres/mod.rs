@@ -2,15 +2,24 @@ use anyhow::Context;
 use async_trait::async_trait;
 use sqlx::{migrate, postgres::PgPoolOptions, query, query_as, PgPool};
 
-use super::traits::{Meta, MetaStore, MetaStoreError};
+use super::{
+    error::{Error, Result},
+    traits::{Meta, MetaStore},
+};
 
 #[derive(Debug)]
 pub struct PostgresMetaStore(PgPool);
 
 impl PostgresMetaStore {
-    pub async fn new(url: &str) -> Result<PostgresMetaStore, sqlx::Error> {
-        let pool = PgPoolOptions::new().connect(url).await?;
-        migrate!("src/meta/postgres/migrations").run(&pool).await?;
+    pub async fn new(url: &str) -> Result<PostgresMetaStore> {
+        let pool = PgPoolOptions::new()
+            .connect(url)
+            .await
+            .context("Database error")?;
+        migrate!("src/meta/postgres/migrations")
+            .run(&pool)
+            .await
+            .context("Database error")?;
         Ok(Self(pool))
     }
 }
@@ -42,7 +51,7 @@ impl From<Meta> for DbValue {
 impl MetaStore for PostgresMetaStore {
     type Key = i32;
 
-    async fn get(&self, key: &Self::Key) -> Result<Meta, MetaStoreError> {
+    async fn get(&self, key: &Self::Key) -> Result<Meta> {
         let row = query_as!(
             DbValue,
             r#"
@@ -60,10 +69,10 @@ impl MetaStore for PostgresMetaStore {
         .await
         .context("Database error")?;
 
-        row.map(Into::into).ok_or(MetaStoreError::NotFound)
+        row.map(Into::into).ok_or(Error::NotFound)
     }
 
-    async fn upsert(&mut self, key: Self::Key, meta: Meta) -> Result<(), MetaStoreError> {
+    async fn upsert(&mut self, key: Self::Key, meta: Meta) -> Result<()> {
         let meta: DbValue = meta.into();
 
         query!(
@@ -93,7 +102,7 @@ impl MetaStore for PostgresMetaStore {
         Ok(())
     }
 
-    async fn remove(&mut self, key: &Self::Key) -> Result<(), MetaStoreError> {
+    async fn remove(&mut self, key: &Self::Key) -> Result<()> {
         query!(
             r#"
                 DELETE FROM
@@ -129,7 +138,7 @@ mod tests {
             let key = 42;
 
             let value = store.get(&key).await;
-            assert!(matches!(value, Err(MetaStoreError::NotFound)));
+            assert!(matches!(value, Err(Error::NotFound)));
 
             let initial_meta = Meta {
                 hashes: b"Here's some stuff for hashes".map(Into::into).to_vec(),
@@ -156,10 +165,7 @@ mod tests {
 
             let key = 19;
 
-            assert!(matches!(
-                store.get(&key).await,
-                Err(MetaStoreError::NotFound)
-            ));
+            assert!(matches!(store.get(&key).await, Err(Error::NotFound)));
             store.remove(&key).await.unwrap();
 
             let meta = Meta {
@@ -170,10 +176,7 @@ mod tests {
             assert_eq!(store.get(&key).await.unwrap(), meta);
 
             store.remove(&key).await.unwrap();
-            assert!(matches!(
-                store.get(&key).await,
-                Err(MetaStoreError::NotFound)
-            ));
+            assert!(matches!(store.get(&key).await, Err(Error::NotFound)));
 
             store.remove(&key).await.unwrap();
         });
