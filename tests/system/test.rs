@@ -14,7 +14,7 @@ async fn it_can_read_and_write() {
     let mut fs = System::new(
         MemoryChunkStore::new(),
         MemoryMetaStore::new(),
-        BuildWyHasher::new(),
+        BuildWyHasher,
     );
     fs.upsert(42, &source).await.unwrap();
     assert_eq!(fs.read(42).await.unwrap(), source);
@@ -25,7 +25,7 @@ async fn it_can_update() {
     let mut fs = System::new(
         MemoryChunkStore::new(),
         MemoryMetaStore::new(),
-        BuildWyHasher::new(),
+        BuildWyHasher,
     );
 
     let initial_source = b"Initial contents";
@@ -50,7 +50,7 @@ async fn can_restore_samples() {
     let mut fs = System::new(
         MemoryChunkStore::new(),
         MemoryMetaStore::new(),
-        BuildWyHasher::new(),
+        BuildWyHasher,
     );
 
     let samples = vec![
@@ -85,7 +85,7 @@ fn it_can_read_and_write_with_redis() {
         let mut fs = System::new(
             RedisChunkStore::new(url).unwrap(),
             MemoryMetaStore::new(),
-            BuildWyHasher::new(),
+            BuildWyHasher,
         );
 
         let source = b"Hello World!".repeat(10_000);
@@ -100,7 +100,7 @@ fn it_can_update_with_redis() {
         let mut fs = System::new(
             RedisChunkStore::new(url).unwrap(),
             MemoryMetaStore::new(),
-            BuildWyHasher::new(),
+            BuildWyHasher,
         );
 
         let initial_source = b"Initial contents";
@@ -119,7 +119,7 @@ fn can_restore_samples_with_redis() {
         let mut fs = System::new(
             RedisChunkStore::new(url).unwrap(),
             MemoryMetaStore::new(),
-            BuildWyHasher::new(),
+            BuildWyHasher,
         );
 
         let samples = vec![
@@ -156,7 +156,7 @@ fn it_can_read_and_write_with_postgres() {
         let mut fs = System::new(
             MemoryChunkStore::new(),
             PostgresMetaStore::new(&url).await.unwrap(),
-            BuildWyHasher::new(),
+            BuildWyHasher,
         );
         fs.upsert(42, &source).await.unwrap();
         assert_eq!(fs.read(42).await.unwrap(), source);
@@ -169,7 +169,7 @@ fn it_can_update_with_postgres() {
         let mut fs = System::new(
             MemoryChunkStore::new(),
             PostgresMetaStore::new(&url).await.unwrap(),
-            BuildWyHasher::new(),
+            BuildWyHasher,
         );
 
         let initial_source = b"Initial contents";
@@ -188,7 +188,7 @@ fn can_restore_samples_with_postgres() {
         let mut fs = System::new(
             MemoryChunkStore::new(),
             PostgresMetaStore::new(&url).await.unwrap(),
-            BuildWyHasher::new(),
+            BuildWyHasher,
         );
 
         let samples = vec![
@@ -224,7 +224,7 @@ async fn can_stream_write_samples() {
     let mut fs = System::new(
         MemoryChunkStore::new(),
         MemoryMetaStore::new(),
-        BuildWyHasher::new(),
+        BuildWyHasher,
     );
 
     let samples = vec![
@@ -260,7 +260,7 @@ async fn can_stream_read_samples() {
     let mut fs = System::new(
         MemoryChunkStore::new(),
         MemoryMetaStore::new(),
-        BuildWyHasher::new(),
+        BuildWyHasher,
     );
 
     let samples = vec![
@@ -296,7 +296,7 @@ async fn can_read_into_with_samples() {
     let mut fs = System::new(
         MemoryChunkStore::new(),
         MemoryMetaStore::new(),
-        BuildWyHasher::new(),
+        BuildWyHasher,
     );
 
     let samples = vec![
