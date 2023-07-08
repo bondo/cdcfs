@@ -1,8 +1,7 @@
 use proptest::prelude::*;
+use with_postgres_ready::with_postgres_ready;
 
 use cdcfs::meta::{MemoryMetaStore, Meta, MetaStore, PostgresMetaStore};
-
-use crate::utils::with_postgres_ready;
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(8))]

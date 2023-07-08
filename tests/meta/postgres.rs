@@ -1,9 +1,9 @@
+use with_postgres_ready::with_postgres_ready;
+
 use cdcfs::{
     meta::{Error, Meta, MetaStore},
     PostgresMetaStore,
 };
-
-use crate::utils::with_postgres_ready;
 
 #[test]
 fn it_can_read_and_write() {

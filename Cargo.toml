@@ -23,6 +23,7 @@ test-log = { version = "0.2", default-features = false, features = ["trace"] }
 tokio = { version = "1.28.2", features = ["test-util", "macros"] }
 tracing = "0.1.13"
 tracing-subscriber = "0.2"
+with_postgres_ready = "0.1.0"
 
 [build-dependencies]
 dotenvy = "0.15.7"

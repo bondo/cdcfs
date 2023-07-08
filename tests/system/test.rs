@@ -1,8 +1,10 @@
 use std::{fs, io::Read};
 
+use with_postgres_ready::with_postgres_ready;
+
 use cdcfs::{MemoryChunkStore, MemoryMetaStore, PostgresMetaStore, RedisChunkStore, System};
 
-use crate::utils::{with_postgres_ready, with_redis_ready};
+use crate::utils::with_redis_ready;
 
 #[tokio::test]
 async fn it_can_read_and_write() {
