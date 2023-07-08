@@ -1,9 +1,8 @@
 use std::{fs, io::Read};
 
-use crate::{
-    tests::{with_postgres_ready, with_redis_ready},
-    MemoryChunkStore, MemoryMetaStore, PostgresMetaStore, RedisChunkStore, System,
-};
+use cdcfs::{MemoryChunkStore, MemoryMetaStore, PostgresMetaStore, RedisChunkStore, System};
+
+use crate::utils::{with_postgres_ready, with_redis_ready};
 
 #[tokio::test]
 async fn it_can_read_and_write() {
@@ -28,8 +27,8 @@ async fn it_can_update() {
     fs.delete(42).await.unwrap();
     assert!(matches!(
         fs.read(42).await,
-        Err(crate::system::Error::MetaStore(
-            crate::meta::Error::NotFound
+        Err(cdcfs::system::Error::MetaStore(
+            cdcfs::meta::Error::NotFound
         ))
     ));
 }

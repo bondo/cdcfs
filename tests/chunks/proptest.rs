@@ -1,9 +1,8 @@
 use proptest::prelude::*;
 
-use crate::{
-    chunks::{ChunkStore, MemoryChunkStore, RedisChunkStore},
-    tests::with_redis_ready,
-};
+use cdcfs::chunks::{ChunkStore, MemoryChunkStore, RedisChunkStore};
+
+use crate::utils::with_redis_ready;
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(8))]
