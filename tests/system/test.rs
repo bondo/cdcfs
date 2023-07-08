@@ -47,7 +47,7 @@ async fn can_restore_samples() {
     let meta: Vec<(&str, Vec<u8>)> = samples
         .into_iter()
         .map(|sample| {
-            let file = fs::read(format!("test/fixtures/{sample}"))
+            let file = fs::read(format!("tests/fixtures/{sample}"))
                 .expect("Should be able to read fixture");
             (sample, file)
         })
@@ -104,7 +104,7 @@ fn can_restore_samples_with_redis() {
         let meta: Vec<(&str, Vec<u8>)> = samples
             .into_iter()
             .map(|sample| {
-                let file = fs::read(format!("test/fixtures/{sample}"))
+                let file = fs::read(format!("tests/fixtures/{sample}"))
                     .expect("Should be able to read fixture");
                 (sample, file)
             })
@@ -171,7 +171,7 @@ fn can_restore_samples_with_postgres() {
             .into_iter()
             .enumerate()
             .map(|(idx, sample)| {
-                let file = fs::read(format!("test/fixtures/{sample}"))
+                let file = fs::read(format!("tests/fixtures/{sample}"))
                     .expect("Should be able to read fixture");
                 (idx as i32, file)
             })
@@ -202,9 +202,9 @@ async fn can_stream_write_samples() {
     let meta: Vec<(&str, fs::File, Vec<u8>)> = samples
         .into_iter()
         .map(|sample| {
-            let file_bytes = fs::read(format!("test/fixtures/{sample}"))
+            let file_bytes = fs::read(format!("tests/fixtures/{sample}"))
                 .expect("Should be able to read fixture");
-            let file_stream = fs::File::open(format!("test/fixtures/{sample}"))
+            let file_stream = fs::File::open(format!("tests/fixtures/{sample}"))
                 .expect("Should be able to read fixture");
             (sample, file_stream, file_bytes)
         })
@@ -234,7 +234,7 @@ async fn can_stream_read_samples() {
     let meta: Vec<(&str, Vec<u8>)> = samples
         .into_iter()
         .map(|sample| {
-            let file = fs::read(format!("test/fixtures/{sample}"))
+            let file = fs::read(format!("tests/fixtures/{sample}"))
                 .expect("Should be able to read fixture");
             (sample, file)
         })
@@ -266,7 +266,7 @@ async fn can_read_into_with_samples() {
     let meta: Vec<(&str, Vec<u8>)> = samples
         .into_iter()
         .map(|sample| {
-            let file = fs::read(format!("test/fixtures/{sample}"))
+            let file = fs::read(format!("tests/fixtures/{sample}"))
                 .expect("Should be able to read fixture");
             (sample, file)
         })
