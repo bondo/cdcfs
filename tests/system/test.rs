@@ -2,21 +2,31 @@ use std::{fs, io::Read};
 
 use with_postgres_ready::with_postgres_ready;
 
-use cdcfs::{MemoryChunkStore, MemoryMetaStore, PostgresMetaStore, RedisChunkStore, System};
+use cdcfs::{
+    BuildWyHasher, MemoryChunkStore, MemoryMetaStore, PostgresMetaStore, RedisChunkStore, System,
+};
 
 use crate::utils::with_redis_ready;
 
 #[tokio::test]
 async fn it_can_read_and_write() {
     let source = b"Hello World!".repeat(10_000);
-    let mut fs = System::new(MemoryChunkStore::new(), MemoryMetaStore::new());
+    let mut fs = System::new(
+        MemoryChunkStore::new(),
+        MemoryMetaStore::new(),
+        BuildWyHasher::new(),
+    );
     fs.upsert(42, &source).await.unwrap();
     assert_eq!(fs.read(42).await.unwrap(), source);
 }
 
 #[tokio::test]
 async fn it_can_update() {
-    let mut fs = System::new(MemoryChunkStore::new(), MemoryMetaStore::new());
+    let mut fs = System::new(
+        MemoryChunkStore::new(),
+        MemoryMetaStore::new(),
+        BuildWyHasher::new(),
+    );
 
     let initial_source = b"Initial contents";
     fs.upsert(42, initial_source).await.unwrap();
@@ -37,7 +47,11 @@ async fn it_can_update() {
 
 #[tokio::test]
 async fn can_restore_samples() {
-    let mut fs = System::new(MemoryChunkStore::new(), MemoryMetaStore::new());
+    let mut fs = System::new(
+        MemoryChunkStore::new(),
+        MemoryMetaStore::new(),
+        BuildWyHasher::new(),
+    );
 
     let samples = vec![
         "file_example_JPG_2500kB.jpg",
@@ -68,7 +82,11 @@ async fn can_restore_samples() {
 #[test_log::test]
 fn it_can_read_and_write_with_redis() {
     with_redis_ready(|url| async move {
-        let mut fs = System::new(RedisChunkStore::new(url).unwrap(), MemoryMetaStore::new());
+        let mut fs = System::new(
+            RedisChunkStore::new(url).unwrap(),
+            MemoryMetaStore::new(),
+            BuildWyHasher::new(),
+        );
 
         let source = b"Hello World!".repeat(10_000);
         fs.upsert(42, &source).await.unwrap();
@@ -79,7 +97,11 @@ fn it_can_read_and_write_with_redis() {
 #[test_log::test]
 fn it_can_update_with_redis() {
     with_redis_ready(|url| async move {
-        let mut fs = System::new(RedisChunkStore::new(url).unwrap(), MemoryMetaStore::new());
+        let mut fs = System::new(
+            RedisChunkStore::new(url).unwrap(),
+            MemoryMetaStore::new(),
+            BuildWyHasher::new(),
+        );
 
         let initial_source = b"Initial contents";
         fs.upsert(42, initial_source).await.unwrap();
@@ -94,7 +116,11 @@ fn it_can_update_with_redis() {
 #[test_log::test]
 fn can_restore_samples_with_redis() {
     with_redis_ready(|url| async move {
-        let mut fs = System::new(RedisChunkStore::new(url).unwrap(), MemoryMetaStore::new());
+        let mut fs = System::new(
+            RedisChunkStore::new(url).unwrap(),
+            MemoryMetaStore::new(),
+            BuildWyHasher::new(),
+        );
 
         let samples = vec![
             "file_example_JPG_2500kB.jpg",
@@ -130,6 +156,7 @@ fn it_can_read_and_write_with_postgres() {
         let mut fs = System::new(
             MemoryChunkStore::new(),
             PostgresMetaStore::new(&url).await.unwrap(),
+            BuildWyHasher::new(),
         );
         fs.upsert(42, &source).await.unwrap();
         assert_eq!(fs.read(42).await.unwrap(), source);
@@ -142,6 +169,7 @@ fn it_can_update_with_postgres() {
         let mut fs = System::new(
             MemoryChunkStore::new(),
             PostgresMetaStore::new(&url).await.unwrap(),
+            BuildWyHasher::new(),
         );
 
         let initial_source = b"Initial contents";
@@ -160,6 +188,7 @@ fn can_restore_samples_with_postgres() {
         let mut fs = System::new(
             MemoryChunkStore::new(),
             PostgresMetaStore::new(&url).await.unwrap(),
+            BuildWyHasher::new(),
         );
 
         let samples = vec![
@@ -192,7 +221,11 @@ fn can_restore_samples_with_postgres() {
 
 #[tokio::test]
 async fn can_stream_write_samples() {
-    let mut fs = System::new(MemoryChunkStore::new(), MemoryMetaStore::new());
+    let mut fs = System::new(
+        MemoryChunkStore::new(),
+        MemoryMetaStore::new(),
+        BuildWyHasher::new(),
+    );
 
     let samples = vec![
         "file_example_JPG_2500kB.jpg",
@@ -224,7 +257,11 @@ async fn can_stream_write_samples() {
 
 #[tokio::test]
 async fn can_stream_read_samples() {
-    let mut fs = System::new(MemoryChunkStore::new(), MemoryMetaStore::new());
+    let mut fs = System::new(
+        MemoryChunkStore::new(),
+        MemoryMetaStore::new(),
+        BuildWyHasher::new(),
+    );
 
     let samples = vec![
         "file_example_JPG_2500kB.jpg",
@@ -256,7 +293,11 @@ async fn can_stream_read_samples() {
 
 #[tokio::test]
 async fn can_read_into_with_samples() {
-    let mut fs = System::new(MemoryChunkStore::new(), MemoryMetaStore::new());
+    let mut fs = System::new(
+        MemoryChunkStore::new(),
+        MemoryMetaStore::new(),
+        BuildWyHasher::new(),
+    );
 
     let samples = vec![
         "file_example_JPG_2500kB.jpg",

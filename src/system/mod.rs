@@ -1,7 +1,7 @@
 mod error;
-mod implementation;
 mod reader;
+mod system;
 
 pub use error::{Error, Result};
-pub use implementation::System;
 pub use reader::Reader;
+pub use system::System;

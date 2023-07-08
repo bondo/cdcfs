@@ -1,7 +1,10 @@
-use std::{fmt::Debug, hash::Hash, io::Read};
+use std::{
+    fmt::Debug,
+    hash::{BuildHasher, Hasher},
+    io::Read,
+};
 
 use fastcdc::v2020::{FastCDC, StreamCDC};
-use wyhash::wyhash;
 
 use crate::{
     chunks::ChunkStore,
@@ -11,25 +14,22 @@ use crate::{
 use super::{error::Result, reader::Reader};
 
 #[derive(Debug)]
-pub struct System<C: ChunkStore, M: MetaStore> {
+pub struct System<C: ChunkStore, M: MetaStore, H: BuildHasher> {
     chunk_store: C,
     meta_store: M,
+    hasher: H,
 }
 
 static AVG_SIZE: u32 = u32::pow(2, 14);
 static MIN_SIZE: u32 = AVG_SIZE / 4;
 static MAX_SIZE: u32 = AVG_SIZE * 4;
 
-impl<K, C, M> System<C, M>
-where
-    K: Debug + Eq + Hash,
-    M: MetaStore<Key = K>,
-    C: ChunkStore,
-{
-    pub fn new(chunk_store: C, meta_store: M) -> Self {
+impl<K, C: ChunkStore, M: MetaStore<Key = K>, H: BuildHasher> System<C, M, H> {
+    pub fn new(chunk_store: C, meta_store: M, hasher: H) -> Self {
         Self {
             chunk_store,
             meta_store,
+            hasher,
         }
     }
 
@@ -56,7 +56,9 @@ where
     }
 
     fn write_chunk(&mut self, bytes: Vec<u8>) -> Result<u64> {
-        let hash = wyhash(&bytes, 42);
+        let mut hasher = self.hasher.build_hasher();
+        hasher.write(&bytes);
+        let hash = hasher.finish();
 
         self.chunk_store.insert(hash, bytes)?;
 
