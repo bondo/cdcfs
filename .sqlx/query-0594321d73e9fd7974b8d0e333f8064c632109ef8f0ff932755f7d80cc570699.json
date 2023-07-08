@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    hashes,\n                    size\n                FROM\n                    files f\n                WHERE\n                    f.id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "hashes",
+        "type_info": "Int8Array"
+      },
+      {
+        "ordinal": 1,
+        "name": "size",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "0594321d73e9fd7974b8d0e333f8064c632109ef8f0ff932755f7d80cc570699"
+}

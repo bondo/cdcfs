@@ -3,6 +3,7 @@ trap exit_handler SIGINT SIGTERM
 
 function exit_handler()
 {
+	rm .env
 	kill -sTERM "$pidp"
 	kill -sTERM "$pidd"
 }
@@ -10,7 +11,9 @@ function exit_handler()
 docker run -p 5435:5432 -e POSTGRES_PASSWORD=postgres postgres &
 pidd=$!
 
-cargo watch --ignore sqlx-data.json -q -x 'sqlx prepare' > /dev/null 2>&1 &
+echo "DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5435/postgres" > .env
+
+cargo watch -w src/meta/postgres -q -x 'sqlx prepare' > /dev/null 2>&1 &
 pidp=$!
 
 wait "$pidp"
