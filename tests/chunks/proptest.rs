@@ -17,8 +17,8 @@ proptest! {
             for operation in operations.0.iter() {
                 match operation {
                     Operation::Insert(chunk_id, chunk) => {
-                        let mem = memory_chunk_store.insert(*chunk_id, chunk.clone()).map_err(|e|format!("{e:?}"));
-                        let red = redis_chunk_store.insert(*chunk_id, chunk.clone()).map_err(|e|format!("{e:?}"));
+                        let mem = memory_chunk_store.upsert(*chunk_id, chunk.clone()).map_err(|e|format!("{e:?}"));
+                        let red = redis_chunk_store.upsert(*chunk_id, chunk.clone()).map_err(|e|format!("{e:?}"));
                         assert_eq!(mem, red);
                     },
                     Operation::Get(chunk_id) => {

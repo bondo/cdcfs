@@ -325,3 +325,26 @@ async fn can_read_into_with_samples() {
         assert_eq!(&buf, file);
     }
 }
+
+#[tokio::test]
+async fn can_have_the_same_entity_multiple_times() {
+    let mut fs = System::new(
+        MemoryChunkStore::new(),
+        MemoryMetaStore::new(),
+        BuildWyHasher::default(),
+    );
+
+    let file = fs::read("tests/fixtures/file_example_JPG_2500kB.jpg")
+        .expect("Should be able to read fixture");
+
+    fs.write(&1, &file).await.unwrap();
+    fs.write(&2, &file).await.unwrap();
+
+    let mut buf = vec![];
+    fs.read_into(&1, &mut buf).await.unwrap();
+    assert_eq!(buf, file);
+
+    let mut buf = vec![];
+    fs.read_into(&2, &mut buf).await.unwrap();
+    assert_eq!(buf, file);
+}

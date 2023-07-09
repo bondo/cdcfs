@@ -111,7 +111,7 @@ where
         hasher.write(&bytes);
         let hash = hasher.finish();
 
-        self.chunk_store.insert(hash, bytes)?;
+        self.chunk_store.upsert(hash, bytes)?;
 
         Ok(hash)
     }

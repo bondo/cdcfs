@@ -54,10 +54,10 @@ mod tests {
         let mut chunk_store = MemoryChunkStore::new();
 
         chunk_store
-            .insert(42, vec![9, 8, 7, 6, 5, 4, 3, 2])
+            .upsert(42, vec![9, 8, 7, 6, 5, 4, 3, 2])
             .unwrap();
-        chunk_store.insert(5, vec![10, 20, 30]).unwrap();
-        chunk_store.insert(1337, vec![100, 50, 75, 80]).unwrap();
+        chunk_store.upsert(5, vec![10, 20, 30]).unwrap();
+        chunk_store.upsert(1337, vec![100, 50, 75, 80]).unwrap();
 
         let mut reader = Reader::new(hashes.into(), &chunk_store);
 

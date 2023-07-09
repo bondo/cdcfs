@@ -1,7 +1,4 @@
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    hash::BuildHasherDefault,
-};
+use std::{collections::HashMap, hash::BuildHasherDefault};
 
 use nohash_hasher::NoHashHasher;
 
@@ -34,14 +31,9 @@ impl ChunkStore for MemoryChunkStore {
         }
     }
 
-    fn insert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<()> {
-        match self.0.entry(hash) {
-            Entry::Vacant(entry) => {
-                entry.insert(chunk);
-                Ok(())
-            }
-            Entry::Occupied(_) => Err(Error::AlreadyExists),
-        }
+    fn upsert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<()> {
+        self.0.insert(hash, chunk);
+        Ok(())
     }
 
     fn remove(&mut self, hash: &u64) -> Result<()> {

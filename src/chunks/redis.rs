@@ -23,11 +23,8 @@ impl ChunkStore for RedisChunkStore {
         Ok(val)
     }
 
-    fn insert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<()> {
+    fn upsert(&mut self, hash: u64, chunk: Vec<u8>) -> Result<()> {
         let mut conn = self.0.get_connection().context("Redis error")?;
-        if conn.exists(hash).context("Redis error")? {
-            return Err(Error::AlreadyExists);
-        }
         conn.set(hash, chunk).context("Redis error")?;
         Ok(())
     }
