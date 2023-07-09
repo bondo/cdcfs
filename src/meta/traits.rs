@@ -16,7 +16,7 @@ pub trait MetaStore: Debug {
 
     async fn get(&self, key: &Self::Key) -> Result<Meta>;
 
-    async fn upsert(&mut self, key: Self::Key, meta: Meta) -> Result<()>;
+    async fn upsert(&mut self, key: &Self::Key, meta: Meta) -> Result<()>;
 
     async fn remove(&mut self, key: &Self::Key) -> Result<()>;
 }

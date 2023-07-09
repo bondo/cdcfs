@@ -4,6 +4,7 @@ use thiserror::Error;
 pub enum Error {
     #[error("File not found")]
     NotFound,
+
     #[error("Internal error: {0}")]
     Internal(#[from] anyhow::Error),
 }

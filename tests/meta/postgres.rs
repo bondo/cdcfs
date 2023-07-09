@@ -10,9 +10,9 @@ fn it_can_read_and_write() {
     with_postgres_ready(|url| async move {
         let mut store = PostgresMetaStore::new(&url).await.unwrap();
 
-        let key = 42;
+        let key = &42;
 
-        let value = store.get(&key).await;
+        let value = store.get(key).await;
         assert!(matches!(value, Err(Error::NotFound)));
 
         let initial_meta = Meta {
@@ -20,7 +20,7 @@ fn it_can_read_and_write() {
             size: 1234,
         };
         store.upsert(key, initial_meta.clone()).await.unwrap();
-        let value = store.get(&key).await.unwrap();
+        let value = store.get(key).await.unwrap();
         assert_eq!(value, initial_meta);
 
         let updated_meta = Meta {
@@ -28,7 +28,7 @@ fn it_can_read_and_write() {
             size: 4321,
         };
         store.upsert(key, updated_meta.clone()).await.unwrap();
-        let value = store.get(&key).await.unwrap();
+        let value = store.get(key).await.unwrap();
         assert_eq!(value, updated_meta);
     });
 }
@@ -38,21 +38,21 @@ fn it_can_remove_meta() {
     with_postgres_ready(|url| async move {
         let mut store = PostgresMetaStore::new(&url).await.unwrap();
 
-        let key = 19;
+        let key = &19;
 
-        assert!(matches!(store.get(&key).await, Err(Error::NotFound)));
-        store.remove(&key).await.unwrap();
+        assert!(matches!(store.get(key).await, Err(Error::NotFound)));
+        store.remove(key).await.unwrap();
 
         let meta = Meta {
             hashes: [10; 20].into(),
             size: 1234,
         };
         store.upsert(key, meta.clone()).await.unwrap();
-        assert_eq!(store.get(&key).await.unwrap(), meta);
+        assert_eq!(store.get(key).await.unwrap(), meta);
 
-        store.remove(&key).await.unwrap();
-        assert!(matches!(store.get(&key).await, Err(Error::NotFound)));
+        store.remove(key).await.unwrap();
+        assert!(matches!(store.get(key).await, Err(Error::NotFound)));
 
-        store.remove(&key).await.unwrap();
+        store.remove(key).await.unwrap();
     });
 }

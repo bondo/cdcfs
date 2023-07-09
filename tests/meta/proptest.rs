@@ -17,8 +17,8 @@ proptest! {
                 match operation {
                     Operation::Upsert(id, hashes) => {
                         let meta = Meta { hashes: hashes.clone(), size: 0 };
-                        let mem = memory_meta_store.upsert(*id, meta.clone()).await.map_err(|e|format!("{e:?}"));
-                        let red = postgres_meta_store.upsert(*id, meta.clone()).await.map_err(|e|format!("{e:?}"));
+                        let mem = memory_meta_store.upsert(id, meta.clone()).await.map_err(|e|format!("{e:?}"));
+                        let red = postgres_meta_store.upsert(id, meta.clone()).await.map_err(|e|format!("{e:?}"));
                         assert_eq!(mem, red);
                     },
                     Operation::Get(id) => {

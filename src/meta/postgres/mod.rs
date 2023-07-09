@@ -72,7 +72,7 @@ impl MetaStore for PostgresMetaStore {
         row.map(Into::into).ok_or(Error::NotFound)
     }
 
-    async fn upsert(&mut self, key: Self::Key, meta: Meta) -> Result<()> {
+    async fn upsert(&mut self, key: &Self::Key, meta: Meta) -> Result<()> {
         let meta: DbValue = meta.into();
 
         query!(

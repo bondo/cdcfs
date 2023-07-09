@@ -31,12 +31,12 @@ fn bench_hasher<H: BuildHasher + Default>(b: &mut Bencher<'_>) {
             .collect();
 
         for (name, file) in &meta {
-            fs.upsert(*name, file.as_slice()).await.unwrap();
+            fs.write(name, file).await.unwrap();
         }
 
-        for (name, file) in meta {
+        for (name, file) in &meta {
             let result = fs.read(name).await.unwrap();
-            assert_eq!(result, file);
+            assert_eq!(&result, file);
         }
     })
 }

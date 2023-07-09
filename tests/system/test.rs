@@ -16,8 +16,8 @@ async fn it_can_read_and_write() {
         MemoryMetaStore::new(),
         BuildWyHasher::default(),
     );
-    fs.upsert(42, &source).await.unwrap();
-    assert_eq!(fs.read(42).await.unwrap(), source);
+    fs.write(&42, &source).await.unwrap();
+    assert_eq!(fs.read(&42).await.unwrap(), source);
 }
 
 #[tokio::test]
@@ -29,16 +29,16 @@ async fn it_can_update() {
     );
 
     let initial_source = b"Initial contents";
-    fs.upsert(42, initial_source).await.unwrap();
+    fs.write(&42, initial_source).await.unwrap();
 
     let updated_source = b"Updated contents";
-    fs.upsert(42, updated_source).await.unwrap();
+    fs.write(&42, updated_source).await.unwrap();
 
-    assert_eq!(fs.read(42).await.unwrap(), updated_source);
+    assert_eq!(fs.read(&42).await.unwrap(), updated_source);
 
-    fs.delete(42).await.unwrap();
+    fs.delete(&42).await.unwrap();
     assert!(matches!(
-        fs.read(42).await,
+        fs.read(&42).await,
         Err(cdcfs::system::Error::MetaStore(
             cdcfs::meta::Error::NotFound
         ))
@@ -70,12 +70,12 @@ async fn can_restore_samples() {
         .collect();
 
     for (name, file) in &meta {
-        fs.upsert(*name, file.as_slice()).await.unwrap();
+        fs.write(name, file).await.unwrap();
     }
 
-    for (name, file) in meta {
+    for (name, file) in &meta {
         let result = fs.read(name).await.unwrap();
-        assert_eq!(result, file);
+        assert_eq!(&result, file);
     }
 }
 
@@ -89,8 +89,8 @@ fn it_can_read_and_write_with_redis() {
         );
 
         let source = b"Hello World!".repeat(10_000);
-        fs.upsert(42, &source).await.unwrap();
-        assert_eq!(fs.read(42).await.unwrap(), source);
+        fs.write(&42, &source).await.unwrap();
+        assert_eq!(fs.read(&42).await.unwrap(), source);
     });
 }
 
@@ -104,12 +104,12 @@ fn it_can_update_with_redis() {
         );
 
         let initial_source = b"Initial contents";
-        fs.upsert(42, initial_source).await.unwrap();
+        fs.write(&42, initial_source).await.unwrap();
 
         let updated_source = b"Updated contents";
-        fs.upsert(42, updated_source).await.unwrap();
+        fs.write(&42, updated_source).await.unwrap();
 
-        assert_eq!(fs.read(42).await.unwrap(), updated_source);
+        assert_eq!(fs.read(&42).await.unwrap(), updated_source);
     });
 }
 
@@ -139,12 +139,12 @@ fn can_restore_samples_with_redis() {
             .collect();
 
         for (name, file) in &meta {
-            fs.upsert(*name, file.as_slice()).await.unwrap();
+            fs.write(name, file).await.unwrap();
         }
 
-        for (name, file) in meta {
+        for (name, file) in &meta {
             let result = fs.read(name).await.unwrap();
-            assert_eq!(result, file);
+            assert_eq!(&result, file);
         }
     });
 }
@@ -158,8 +158,8 @@ fn it_can_read_and_write_with_postgres() {
             PostgresMetaStore::new(&url).await.unwrap(),
             BuildWyHasher::default(),
         );
-        fs.upsert(42, &source).await.unwrap();
-        assert_eq!(fs.read(42).await.unwrap(), source);
+        fs.write(&42, &source).await.unwrap();
+        assert_eq!(fs.read(&42).await.unwrap(), source);
     });
 }
 
@@ -173,12 +173,12 @@ fn it_can_update_with_postgres() {
         );
 
         let initial_source = b"Initial contents";
-        fs.upsert(42, initial_source).await.unwrap();
+        fs.write(&42, initial_source).await.unwrap();
 
         let updated_source = b"Updated contents";
-        fs.upsert(42, updated_source).await.unwrap();
+        fs.write(&42, updated_source).await.unwrap();
 
-        assert_eq!(fs.read(42).await.unwrap(), updated_source);
+        assert_eq!(fs.read(&42).await.unwrap(), updated_source);
     });
 }
 
@@ -209,12 +209,12 @@ fn can_restore_samples_with_postgres() {
             .collect();
 
         for (id, file) in &meta {
-            fs.upsert(*id, file.as_slice()).await.unwrap();
+            fs.write(id, file).await.unwrap();
         }
 
-        for (id, file) in meta {
+        for (id, file) in &meta {
             let result = fs.read(id).await.unwrap();
-            assert_eq!(result, file);
+            assert_eq!(&result, file);
         }
     });
 }
@@ -246,12 +246,12 @@ async fn can_stream_write_samples() {
         .collect();
 
     for (name, file, _) in &meta {
-        fs.upsert_stream(*name, file).await.unwrap();
+        fs.write_stream(name, file).await.unwrap();
     }
 
-    for (name, _, bytes) in meta {
+    for (name, _, bytes) in &meta {
         let result = fs.read(name).await.unwrap();
-        assert_eq!(result, bytes);
+        assert_eq!(&result, bytes);
     }
 }
 
@@ -280,14 +280,14 @@ async fn can_stream_read_samples() {
         .collect();
 
     for (name, file) in &meta {
-        fs.upsert(*name, file.as_slice()).await.unwrap();
+        fs.write(name, file).await.unwrap();
     }
 
-    for (name, file) in meta {
+    for (name, file) in &meta {
         let mut reader = fs.read_stream(name).await.expect("Should return stream");
         let mut buf = vec![];
         reader.read_to_end(&mut buf).unwrap();
-        assert_eq!(buf, file);
+        assert_eq!(&buf, file);
     }
 }
 
@@ -316,12 +316,12 @@ async fn can_read_into_with_samples() {
         .collect();
 
     for (name, file) in &meta {
-        fs.upsert(*name, file.as_slice()).await.unwrap();
+        fs.write(name, file).await.unwrap();
     }
 
-    for (name, file) in meta {
+    for (name, file) in &meta {
         let mut buf = vec![];
         fs.read_into(name, &mut buf).await.unwrap();
-        assert_eq!(buf, file);
+        assert_eq!(&buf, file);
     }
 }

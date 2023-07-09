@@ -24,19 +24,19 @@ impl<K: Eq + Hash> Default for MemoryMetaStore<K> {
 }
 
 #[async_trait]
-impl<K: Debug + Eq + Hash + Send + Sync> MetaStore for MemoryMetaStore<K> {
-    type Key = K;
+impl<Key: Debug + Clone + Eq + Hash + Send + Sync> MetaStore for MemoryMetaStore<Key> {
+    type Key = Key;
 
-    async fn get(&self, key: &Self::Key) -> Result<Meta> {
+    async fn get(&self, key: &Key) -> Result<Meta> {
         self.0.get(key).map(|v| v.to_owned()).ok_or(Error::NotFound)
     }
 
-    async fn upsert(&mut self, key: Self::Key, meta: Meta) -> Result<()> {
-        self.0.insert(key, meta);
+    async fn upsert(&mut self, key: &Key, meta: Meta) -> Result<()> {
+        self.0.insert(key.to_owned(), meta);
         Ok(())
     }
 
-    async fn remove(&mut self, key: &Self::Key) -> Result<()> {
+    async fn remove(&mut self, key: &Key) -> Result<()> {
         self.0.remove(key);
         Ok(())
     }
