@@ -1,7 +1,7 @@
 mod error;
+mod r#impl;
 mod reader;
-mod system;
 
 pub use error::{Error, Result};
+pub use r#impl::System;
 pub use reader::Reader;
-pub use system::System;

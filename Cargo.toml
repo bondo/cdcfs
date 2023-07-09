@@ -15,6 +15,7 @@ nohash-hasher = "0.2.0"
 redis = "0.23.0"
 sqlx = { version = "0.7.0", features = ["runtime-tokio-rustls", "postgres"] }
 thiserror = "1.0.43"
+twox-hash = "1.6.3"
 wyhash = "0.5.0"
 
 [dev-dependencies]
